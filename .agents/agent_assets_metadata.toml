@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "AHrpJPi5Qels4R35qvyaE"
@@ -42,3 +41,9 @@ id = "SwIEwAJcnoTleBxgy-z2G"
 uri = "file://artifacts/alvee/assets/images/evt_run.png"
 type = "image"
 title = "running event"
+
+[[outputs]]
+id = "X20YPAAhdbIkgLTRuRFnx"
+uri = "file://README.md"
+type = "text"
+title = "README — Guide complet Alvee"
