@@ -6,10 +6,11 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -25,6 +26,7 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="onboarding" options={{ animation: "fade" }} />
       <Stack.Screen name="auth" options={{ presentation: "modal" }} />
       <Stack.Screen name="event/[id]" />
       <Stack.Screen name="nfc-card" options={{ presentation: "modal" }} />
@@ -36,12 +38,22 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, ...Feather.font });
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync();
-  }, [fontsLoaded, fontError]);
+    AsyncStorage.getItem("alvee_onboarding_done").then(done => {
+      if (!done) {
+        setTimeout(() => router.replace("/onboarding"), 0);
+      }
+      setOnboardingChecked(true);
+    }).catch(() => setOnboardingChecked(true));
+  }, []);
 
-  if (!fontsLoaded && !fontError) return null;
+  useEffect(() => {
+    if ((fontsLoaded || fontError) && onboardingChecked) SplashScreen.hideAsync();
+  }, [fontsLoaded, fontError, onboardingChecked]);
+
+  if ((!fontsLoaded && !fontError) || !onboardingChecked) return null;
 
   return (
     <SafeAreaProvider>
