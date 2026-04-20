@@ -1,7 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Notifications from "expo-notifications";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Platform } from "react-native";
 
 export type CardTier = "none" | "standard" | "prime" | "platinum";
 
@@ -222,9 +220,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    if (Platform.OS !== "web") {
-      Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldPlaySound: true, shouldSetBadge: true, shouldShowAlert: true, shouldShowBanner: true, shouldShowList: true }) });
-    }
     loadData();
   }, []);
 
@@ -258,22 +253,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveNotifs = (ns: AppNotification[]) => AsyncStorage.setItem(SK.NOTIFICATIONS, JSON.stringify(ns));
   const saveMsgs = (ms: Message[]) => AsyncStorage.setItem(SK.MESSAGES, JSON.stringify(ms));
 
-  const pushLocalNotif = async (title: string, body: string) => {
-    if (Platform.OS === "web") return;
-    try {
-      const { status } = await Notifications.getPermissionsAsync();
-      if (status !== "granted") {
-        const { status: s2 } = await Notifications.requestPermissionsAsync();
-        if (s2 !== "granted") return;
-      }
-      await Notifications.scheduleNotificationAsync({ content: { title, body }, trigger: null });
-    } catch (_e) {}
-  };
-
   const addNotification = useCallback((n: Omit<AppNotification, "id" | "createdAt" | "read">) => {
     const notif: AppNotification = { ...n, id: `notif_${Date.now()}`, read: false, createdAt: new Date().toISOString() };
     setNotifications(prev => { const next = [notif, ...prev]; saveNotifs(next); return next; });
-    pushLocalNotif(n.title, n.body);
   }, []);
 
   const addPoints = useCallback((points: number, type: PointTransaction["type"], description: string, eventId?: string) => {
