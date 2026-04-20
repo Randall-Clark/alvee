@@ -79,7 +79,7 @@ export default function EventDetailScreen() {
       const result = await bookEvent(event.id, role);
       if (result) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Réservation confirmée !", `Vous avez gagné +${result.pointsEarned} points !`);
+        Alert.alert("Réservation confirmée !", "Votre place est réservée. Retrouvez votre billet dans l'onglet Billets.");
       }
     } catch { Alert.alert("Erreur", "Impossible de réserver."); }
     finally { setLoading(false); }
