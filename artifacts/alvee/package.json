@@ -57,6 +57,8 @@
   },
   "dependencies": {
     "@react-native-community/datetimepicker": "^9.1.0",
+    "expo-apple-authentication": "^8.0.8",
+    "expo-auth-session": "^7.0.10",
     "expo-notifications": "^55.0.19",
     "react-native-webview": "^13.16.1"
   }

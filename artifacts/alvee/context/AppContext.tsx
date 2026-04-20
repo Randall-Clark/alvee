@@ -16,6 +16,9 @@ export interface User {
   eventsCreated: number;
   role?: string;
   savedPaymentMethods: PaymentMethod[];
+  country?: string;
+  phone?: string;
+  address?: string;
 }
 
 export interface PaymentMethod {
@@ -169,7 +172,8 @@ interface AppContextType {
   unreadNotifCount: number;
   unreadMsgCount: number;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string, country?: string, phone?: string, address?: string) => Promise<boolean>;
+  socialLogin: (provider: "google" | "apple" | "facebook", profile: { name: string; email: string; country?: string; phone?: string }) => Promise<boolean>;
   logout: () => void;
   createEvent: (event: Omit<Event, "id" | "currentParticipants" | "totalPoints" | "status">) => Promise<Event>;
   bookEvent: (eventId: string, role?: string) => Promise<Booking | null>;
@@ -274,12 +278,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch { return false; }
   };
 
-  const register = async (name: string, email: string, _pw: string): Promise<boolean> => {
+  const register = async (name: string, email: string, _pw: string, country?: string, phone?: string, address?: string): Promise<boolean> => {
     try {
       const s = await AsyncStorage.getItem(SK.ALL_USERS);
       const all: User[] = s ? JSON.parse(s) : [];
       if (all.find(u => u.email.toLowerCase() === email.toLowerCase())) return false;
-      const newUser: User = { id: `user_${Date.now()}`, name, email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [] };
+      const newUser: User = { id: `user_${Date.now()}`, name, email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [], country, phone, address };
+      all.push(newUser);
+      await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(all));
+      setUser(newUser); setIsAuthenticated(true); await saveUser(newUser);
+      addNotification({ type: "points", title: "Bienvenue sur Alvee !", body: "Vous avez reçu 150 points de bienvenue." });
+      return true;
+    } catch { return false; }
+  };
+
+  const socialLogin = async (_provider: "google" | "apple" | "facebook", profile: { name: string; email: string; country?: string; phone?: string }): Promise<boolean> => {
+    try {
+      const s = await AsyncStorage.getItem(SK.ALL_USERS);
+      const all: User[] = s ? JSON.parse(s) : [];
+      let found = all.find(u => u.email.toLowerCase() === profile.email.toLowerCase());
+      if (found) {
+        setUser(found); setIsAuthenticated(true); await saveUser(found);
+        return true;
+      }
+      const newUser: User = { id: `user_${Date.now()}`, name: profile.name, email: profile.email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [], country: profile.country, phone: profile.phone };
       all.push(newUser);
       await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(all));
       setUser(newUser); setIsAuthenticated(true); await saveUser(newUser);
@@ -505,7 +527,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       user, events, bookings, pointTransactions, notifications, messages, conversations,
       isAuthenticated, unreadNotifCount, unreadMsgCount,
-      login, register, logout, createEvent, bookEvent, cancelBooking, walkInBooking,
+      login, register, socialLogin, logout, createEvent, bookEvent, cancelBooking, walkInBooking,
       validateQRCode, validateNFC, linkNFCToBooking, orderNFCCard, upgradeCard, completeSurvey,
       getUserBookingForEvent, getEventBookings, updateEvent, cancelEvent, addPoints, addNotification,
       markNotifRead, markAllNotifsRead, sendMessage, markMsgRead,

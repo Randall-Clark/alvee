@@ -7,8 +7,10 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { Event } from "@/context/AppContext";
+import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { getEventImage } from "@/utils/eventImages";
+import { formatPrice } from "@/utils/currency";
 
 interface Props {
   event: Event;
@@ -18,6 +20,7 @@ interface Props {
 
 export function EventCard({ event, compact, horizontal }: Props) {
   const colors = useColors();
+  const { user } = useApp();
   const isFull = event.currentParticipants >= event.maxParticipants;
   const fillPct = Math.min((event.currentParticipants / Math.max(event.maxParticipants, 1)) * 100, 100);
   const requiresPrime = event.price >= 300;
@@ -93,7 +96,7 @@ export function EventCard({ event, compact, horizontal }: Props) {
           )}
         </View>
         <View style={styles.priceTag}>
-          <Text style={styles.priceTagText}>{event.price === 0 ? "Gratuit" : `${event.price}€`}</Text>
+          <Text style={styles.priceTagText}>{formatPrice(event.price, user?.country)}</Text>
         </View>
       </View>
 
