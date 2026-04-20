@@ -1,20 +1,21 @@
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EventCard } from "@/components/EventCard";
-import { PointsBadge } from "@/components/PointsBadge";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -27,6 +28,8 @@ export default function HomeScreen() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tous");
 
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+
   const filteredEvents = useMemo(() => {
     return events.filter(e => {
       if (e.status === "cancelled") return false;
@@ -36,86 +39,134 @@ export default function HomeScreen() {
     });
   }, [events, search, selectedCategory]);
 
-  const topPaddingWeb = Platform.OS === "web" ? 67 : insets.top;
+  const featured = filteredEvents.slice(0, 3);
+  const rest = filteredEvents.slice(3);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPaddingWeb + 12, backgroundColor: colors.background }]}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-              Bonjour{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 👋
-            </Text>
-            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Découvrez des événements</Text>
-          </View>
-          {user && (
-            <Pressable onPress={() => router.push("/profile")} style={[styles.avatarBtn, { backgroundColor: colors.primary }]}>
-              <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
-            </Pressable>
-          )}
-        </View>
-
-        {user && (
-          <View style={[styles.pointsBar, { backgroundColor: colors.surface }]}>
-            <Feather name="zap" size={14} color={colors.gold} />
-            <Text style={[styles.pointsLabel, { color: colors.mutedForeground }]}>Mes points</Text>
-            <PointsBadge points={user.points} size="sm" />
-          </View>
-        )}
-
-        <View style={[styles.searchRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="search" size={16} color={colors.mutedForeground} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.foreground }]}
-            placeholder="Chercher un événement..."
-            placeholderTextColor={colors.mutedForeground}
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch("")}>
-              <Feather name="x" size={16} color={colors.mutedForeground} />
-            </Pressable>
-          )}
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categories} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
-          {CATEGORIES.map(cat => (
-            <Pressable
-              key={cat}
-              onPress={() => setSelectedCategory(cat)}
-              style={[
-                styles.catChip,
-                {
-                  backgroundColor: selectedCategory === cat ? colors.primary : colors.card,
-                  borderColor: selectedCategory === cat ? colors.primary : colors.border,
-                },
-              ]}
-            >
-              <Text style={[styles.catText, { color: selectedCategory === cat ? "#fff" : colors.foreground }]}>
-                {cat}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <FlatList
         data={filteredEvents}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <EventCard event={item} />}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: Platform.OS === "web" ? 90 + 34 : 90 + insets.bottom },
-        ]}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 100 : 80 + insets.bottom }}
+        ListHeaderComponent={
+          <View>
+            <View style={[styles.header, { paddingTop: topPad + 16 }]}>
+              <View style={styles.headerRow}>
+                <View>
+                  <Text style={styles.greeting}>
+                    {user?.name ? `Bonjour, ${user.name.split(" ")[0]}` : "Découvrez"} 👋
+                  </Text>
+                  <Text style={styles.headerTitle}>Mes événements</Text>
+                </View>
+                <View style={styles.headerRight}>
+                  {user && (
+                    <Pressable
+                      style={[styles.pointsPill, { backgroundColor: colors.gold + "20", borderColor: colors.gold + "40" }]}
+                      onPress={() => router.push("/profile")}
+                    >
+                      <Feather name="zap" size={12} color={colors.gold} />
+                      <Text style={[styles.pointsNum, { color: colors.gold }]}>
+                        {user.points.toLocaleString("fr-FR")}
+                      </Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={() => router.push(user ? "/profile" : "/auth")}
+                    style={[styles.avatarBtn, { backgroundColor: user ? colors.gold : colors.muted }]}
+                  >
+                    {user ? (
+                      <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+                    ) : (
+                      <Feather name="user" size={18} color={colors.mutedForeground} />
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Feather name="search" size={16} color={colors.mutedForeground} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.foreground }]}
+                  placeholder="Chercher un événement..."
+                  placeholderTextColor={colors.mutedForeground}
+                  value={search}
+                  onChangeText={setSearch}
+                />
+                {!!search && (
+                  <Pressable onPress={() => setSearch("")}>
+                    <Feather name="x-circle" size={16} color={colors.mutedForeground} />
+                  </Pressable>
+                )}
+              </View>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catList}>
+              {CATEGORIES.map(cat => (
+                <Pressable
+                  key={cat}
+                  onPress={() => setSelectedCategory(cat)}
+                  style={[
+                    styles.catChip,
+                    selectedCategory === cat
+                      ? { backgroundColor: colors.gold, borderColor: colors.gold }
+                      : { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={[
+                    styles.catText,
+                    { color: selectedCategory === cat ? "#0D0D0D" : colors.mutedForeground },
+                  ]}>
+                    {cat}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {filteredEvents.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Événements à venir</Text>
+                </View>
+
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredList}>
+                  {featured.map(ev => (
+                    <EventCard key={ev.id} event={ev} horizontal />
+                  ))}
+                </ScrollView>
+
+                {rest.length > 0 && (
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Tous les événements</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        }
+        renderItem={({ item, index }) => {
+          if (index < 3 && !search && selectedCategory === "Tous") return null;
+          return (
+            <View style={styles.listItem}>
+              <EventCard event={item} />
+            </View>
+          );
+        }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Feather name="calendar" size={48} color={colors.mutedForeground} />
+            <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
+              <Feather name="calendar" size={36} color={colors.mutedForeground} />
+            </View>
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Aucun événement</Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Essayez une autre catégorie ou créez le vôtre
+              Essayez une autre catégorie ou créez votre propre événement
             </Text>
+            <Pressable
+              style={[styles.createBtn, { backgroundColor: colors.gold }]}
+              onPress={() => router.push("/create")}
+            >
+              <Text style={styles.createBtnText}>Créer un événement</Text>
+            </Pressable>
           </View>
         }
       />
@@ -124,105 +175,39 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    paddingBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+  root: { flex: 1 },
+  header: { paddingHorizontal: 20, paddingBottom: 16 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  greeting: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#888888", marginBottom: 2 },
+  headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  pointsPill: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1,
   },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  greeting: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    marginBottom: 2,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    fontFamily: "Inter_700Bold",
-  },
+  pointsNum: { fontSize: 12, fontFamily: "Inter_700Bold" },
   avatarBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center",
   },
-  avatarText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
+  avatarText: { color: "#0D0D0D", fontSize: 15, fontFamily: "Inter_700Bold" },
+  searchBox: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11,
   },
-  pointsBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  pointsLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    flex: 1,
-  },
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginHorizontal: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-  },
-  categories: {
-    marginBottom: 4,
-  },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  catList: { paddingHorizontal: 20, paddingBottom: 4, gap: 8 },
   catChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1,
   },
-  catText: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  empty: {
-    alignItems: "center",
-    paddingTop: 60,
-    gap: 10,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    paddingHorizontal: 40,
-  },
+  catText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  sectionHeader: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  featuredList: { paddingLeft: 20, paddingRight: 8, paddingBottom: 4 },
+  listItem: { paddingHorizontal: 20 },
+  empty: { alignItems: "center", paddingTop: 60, paddingHorizontal: 40, gap: 12 },
+  emptyIcon: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  createBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
+  createBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#0D0D0D" },
 });

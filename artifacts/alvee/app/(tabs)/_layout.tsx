@@ -5,7 +5,7 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -25,7 +25,7 @@ function NativeTabLayout() {
         <Label>Billets</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="manage">
-        <Icon sf={{ default: "calendar.badge.plus", selected: "calendar.badge.plus" }} />
+        <Icon sf={{ default: "slider.horizontal.3", selected: "slider.horizontal.3" }} />
         <Label>Gérer</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
@@ -38,36 +38,28 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
+        tabBarActiveTintColor: colors.gold,
+        tabBarInactiveTintColor: "#555555",
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.background,
+          backgroundColor: isIOS ? "transparent" : "#111111",
           borderTopWidth: 1,
-          borderTopColor: colors.border,
+          borderTopColor: "#222222",
           elevation: 0,
           ...(isWeb ? { height: 84 } : {}),
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
           ) : isWeb ? (
-            <View
-              style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
-            />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111111" }]} />
           ) : null,
         tabBarLabelStyle: {
           fontSize: 10,
@@ -81,11 +73,7 @@ function ClassicTabLayout() {
         options={{
           title: "Explorer",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="house" tintColor={color} size={22} />
-            ) : (
-              <Feather name="compass" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="house" tintColor={color} size={22} /> : <Feather name="compass" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -93,11 +81,7 @@ function ClassicTabLayout() {
         options={{
           title: "Créer",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="plus.circle" tintColor={color} size={22} />
-            ) : (
-              <Feather name="plus-circle" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="plus.circle" tintColor={color} size={22} /> : <Feather name="plus-circle" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -105,11 +89,7 @@ function ClassicTabLayout() {
         options={{
           title: "Billets",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="ticket" tintColor={color} size={22} />
-            ) : (
-              <Feather name="bookmark" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="ticket" tintColor={color} size={22} /> : <Feather name="bookmark" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -117,11 +97,7 @@ function ClassicTabLayout() {
         options={{
           title: "Gérer",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="calendar.badge.plus" tintColor={color} size={22} />
-            ) : (
-              <Feather name="settings" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="slider.horizontal.3" tintColor={color} size={22} /> : <Feather name="settings" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -129,11 +105,7 @@ function ClassicTabLayout() {
         options={{
           title: "Profil",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person" tintColor={color} size={22} />
-            ) : (
-              <Feather name="user" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="person" tintColor={color} size={22} /> : <Feather name="user" size={22} color={color} />,
         }}
       />
     </Tabs>
@@ -141,8 +113,6 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
+  if (isLiquidGlassAvailable()) return <NativeTabLayout />;
   return <ClassicTabLayout />;
 }

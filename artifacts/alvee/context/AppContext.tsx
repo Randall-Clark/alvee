@@ -17,6 +17,7 @@ export interface User {
   nfcCardOrdered: boolean;
   eventsAttended: number;
   eventsCreated: number;
+  role?: string;
 }
 
 export interface Event {
@@ -38,6 +39,7 @@ export interface Event {
   requiresNFC: boolean;
   status: "upcoming" | "ongoing" | "completed" | "cancelled";
   surveyCompleted?: boolean;
+  tags?: string[];
 }
 
 export interface Booking {
@@ -53,6 +55,7 @@ export interface Booking {
   status: "active" | "used" | "cancelled";
   pointsEarned: number;
   bookedAt: string;
+  role?: string;
 }
 
 export interface PointTransaction {
@@ -74,7 +77,7 @@ interface AppContextType {
   register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
   createEvent: (event: Omit<Event, "id" | "currentParticipants" | "totalPoints" | "status">) => Promise<Event>;
-  bookEvent: (eventId: string) => Promise<Booking | null>;
+  bookEvent: (eventId: string, role?: string) => Promise<Booking | null>;
   cancelBooking: (bookingId: string) => Promise<void>;
   validateQRCode: (eventId: string, qrCode: string) => Promise<{ success: boolean; message: string }>;
   validateNFC: (eventId: string, nfcCardId: string) => Promise<{ success: boolean; message: string }>;
@@ -98,30 +101,15 @@ const STORAGE_KEYS = {
   ALL_USERS: "alvee_all_users",
 };
 
-const CATEGORY_IMAGES: Record<string, string> = {
-  Music: "🎵",
-  Sport: "⚽",
-  Art: "🎨",
-  Tech: "💻",
-  Food: "🍕",
-  Social: "🤝",
-  Networking: "🌐",
-  Party: "🎉",
-};
-
 function computePointsForBooking(event: Event, registrationOrder: number): number {
   const totalPoints = event.totalPoints;
   const maxP = event.maxParticipants;
   const earlyThreshold = Math.floor(maxP * 0.4);
-
   if (registrationOrder <= earlyThreshold) {
-    const earlyPool = Math.floor(totalPoints * 0.7);
-    return Math.floor(earlyPool / earlyThreshold);
-  } else {
-    const latePool = Math.floor(totalPoints * 0.3);
-    const lateCount = maxP - earlyThreshold;
-    return Math.floor(latePool / lateCount);
+    return Math.floor((totalPoints * 0.7) / Math.max(earlyThreshold, 1));
   }
+  const lateCount = maxP - earlyThreshold;
+  return Math.floor((totalPoints * 0.3) / Math.max(lateCount, 1));
 }
 
 function computeEventTotalPoints(price: number, maxParticipants: number): number {
@@ -132,7 +120,7 @@ const SAMPLE_EVENTS: Event[] = [
   {
     id: "event_001",
     title: "Soirée Jazz & Connexions",
-    description: "Une soirée intime autour du jazz live, pensée pour créer des rencontres authentiques. Venez partager des moments musicaux uniques et rencontrer des gens passionnés.",
+    description: "Une soirée intime autour du jazz live, pensée pour créer des rencontres authentiques. Venez partager des moments musicaux uniques et rencontrer des gens passionnés par la culture et les arts.",
     category: "Music",
     date: "2026-05-15",
     time: "20:00",
@@ -143,14 +131,16 @@ const SAMPLE_EVENTS: Event[] = [
     currentParticipants: 18,
     organizerId: "user_org_01",
     organizerName: "Marie Dupont",
+    coverImage: "evt_jazz",
     totalPoints: computeEventTotalPoints(25, 50),
     requiresNFC: false,
     status: "upcoming",
+    tags: ["Jazz", "Live Music", "Social"],
   },
   {
     id: "event_002",
     title: "Tech Meetup — IA & Futur",
-    description: "Rejoignez les passionnés de technologie pour explorer ensemble l'avenir de l'intelligence artificielle. Présentations, débats et networking.",
+    description: "Rejoignez les passionnés de technologie pour explorer ensemble l'avenir de l'intelligence artificielle. Présentations, débats et networking de haut niveau.",
     category: "Tech",
     date: "2026-05-20",
     time: "18:30",
@@ -161,9 +151,11 @@ const SAMPLE_EVENTS: Event[] = [
     currentParticipants: 42,
     organizerId: "user_org_02",
     organizerName: "Karim Benali",
+    coverImage: "evt_tech",
     totalPoints: computeEventTotalPoints(15, 100),
     requiresNFC: true,
     status: "upcoming",
+    tags: ["AI", "Tech", "Networking"],
   },
   {
     id: "event_003",
@@ -179,14 +171,16 @@ const SAMPLE_EVENTS: Event[] = [
     currentParticipants: 12,
     organizerId: "user_org_03",
     organizerName: "Sophie Martin",
+    coverImage: "evt_art",
     totalPoints: computeEventTotalPoints(30, 30),
     requiresNFC: false,
     status: "upcoming",
+    tags: ["Art", "Brunch", "Culture"],
   },
   {
     id: "event_004",
     title: "Run & Connect",
-    description: "Une course matinale de 5km suivie d'un petit-déjeuner convivial. Que vous soyez débutant ou confirmé, venez courir et rencontrer des gens actifs.",
+    description: "Une course matinale de 5km suivie d'un petit-déjeuner convivial. Que vous soyez débutant ou confirmé, venez courir et rencontrer des gens actifs et motivés.",
     category: "Sport",
     date: "2026-06-01",
     time: "08:00",
@@ -197,9 +191,11 @@ const SAMPLE_EVENTS: Event[] = [
     currentParticipants: 35,
     organizerId: "user_org_04",
     organizerName: "Alex Petit",
+    coverImage: "evt_run",
     totalPoints: computeEventTotalPoints(10, 80),
     requiresNFC: false,
     status: "upcoming",
+    tags: ["Running", "Sport", "Social"],
   },
 ];
 
@@ -210,9 +206,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pointTransactions, setPointTransactions] = useState<PointTransaction[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
@@ -222,266 +216,146 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem(STORAGE_KEYS.BOOKINGS),
         AsyncStorage.getItem(STORAGE_KEYS.TRANSACTIONS),
       ]);
-
-      if (userData) {
-        const parsed = JSON.parse(userData);
-        setUser(parsed);
-        setIsAuthenticated(true);
-      }
+      if (userData) { setUser(JSON.parse(userData)); setIsAuthenticated(true); }
       if (eventsData) {
-        const parsed = JSON.parse(eventsData);
-        setEvents([...SAMPLE_EVENTS.filter(e => !parsed.find((pe: Event) => pe.id === e.id)), ...parsed]);
+        const parsed: Event[] = JSON.parse(eventsData);
+        setEvents([...SAMPLE_EVENTS.filter(e => !parsed.find((pe) => pe.id === e.id)), ...parsed]);
       }
       if (bookingsData) setBookings(JSON.parse(bookingsData));
       if (txData) setPointTransactions(JSON.parse(txData));
-    } catch (e) {}
+    } catch (_e) {}
   };
 
-  const saveUser = async (u: User) => {
-    await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(u));
-  };
-
-  const saveEvents = async (evs: Event[]) => {
-    const customEvents = evs.filter(e => !SAMPLE_EVENTS.find(se => se.id === e.id));
-    await AsyncStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(customEvents));
-  };
-
-  const saveBookings = async (bs: Booking[]) => {
-    await AsyncStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(bs));
-  };
-
-  const saveTx = async (txs: PointTransaction[]) => {
-    await AsyncStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(txs));
-  };
+  const saveUser = (u: User) => AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(u));
+  const saveEvents = (evs: Event[]) => AsyncStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(evs.filter(e => !SAMPLE_EVENTS.find(se => se.id === e.id))));
+  const saveBookings = (bs: Booking[]) => AsyncStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(bs));
+  const saveTx = (txs: PointTransaction[]) => AsyncStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(txs));
 
   const addPoints = useCallback((points: number, type: PointTransaction["type"], description: string, eventId?: string) => {
-    const tx: PointTransaction = {
-      id: `tx_${Date.now()}`,
-      type,
-      points,
-      description,
-      eventId,
-      createdAt: new Date().toISOString(),
-    };
-    setPointTransactions(prev => {
-      const next = [tx, ...prev];
-      saveTx(next);
-      return next;
-    });
-    setUser(prev => {
-      if (!prev) return prev;
-      const next = { ...prev, points: prev.points + points };
-      saveUser(next);
-      return next;
-    });
+    const tx: PointTransaction = { id: `tx_${Date.now()}`, type, points, description, eventId, createdAt: new Date().toISOString() };
+    setPointTransactions(prev => { const next = [tx, ...prev]; saveTx(next); return next; });
+    setUser(prev => { if (!prev) return prev; const next = { ...prev, points: prev.points + points }; saveUser(next); return next; });
   }, []);
 
-  const login = async (email: string, _password: string): Promise<boolean> => {
+  const login = async (email: string, _pw: string): Promise<boolean> => {
     try {
       const allUsersStr = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
       const allUsers: User[] = allUsersStr ? JSON.parse(allUsersStr) : [];
       const found = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (found) {
-        setUser(found);
-        setIsAuthenticated(true);
-        await saveUser(found);
-        return true;
-      }
+      if (found) { setUser(found); setIsAuthenticated(true); await saveUser(found); return true; }
       return false;
-    } catch (e) {
-      return false;
-    }
+    } catch { return false; }
   };
 
-  const register = async (name: string, email: string, _password: string): Promise<boolean> => {
+  const register = async (name: string, email: string, _pw: string): Promise<boolean> => {
     try {
       const allUsersStr = await AsyncStorage.getItem(STORAGE_KEYS.ALL_USERS);
       const allUsers: User[] = allUsersStr ? JSON.parse(allUsersStr) : [];
       if (allUsers.find(u => u.email.toLowerCase() === email.toLowerCase())) return false;
-
-      const newUser: User = {
-        id: `user_${Date.now()}`,
-        name,
-        email,
-        points: 100,
-        nfcCardOrdered: false,
-        eventsAttended: 0,
-        eventsCreated: 0,
-      };
+      const newUser: User = { id: `user_${Date.now()}`, name, email, points: 150, nfcCardOrdered: false, eventsAttended: 0, eventsCreated: 0 };
       allUsers.push(newUser);
       await AsyncStorage.setItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(allUsers));
-      setUser(newUser);
-      setIsAuthenticated(true);
-      await saveUser(newUser);
+      setUser(newUser); setIsAuthenticated(true); await saveUser(newUser);
       return true;
-    } catch (e) {
-      return false;
-    }
+    } catch { return false; }
   };
 
-  const logout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    AsyncStorage.removeItem(STORAGE_KEYS.USER);
-  };
+  const logout = () => { setUser(null); setIsAuthenticated(false); AsyncStorage.removeItem(STORAGE_KEYS.USER); };
 
   const createEvent = async (eventData: Omit<Event, "id" | "currentParticipants" | "totalPoints" | "status">): Promise<Event> => {
     const totalPoints = computeEventTotalPoints(eventData.price, eventData.maxParticipants);
-    const newEvent: Event = {
-      ...eventData,
-      id: `event_${Date.now()}`,
-      currentParticipants: 0,
-      totalPoints,
-      status: "upcoming",
-    };
+    const newEvent: Event = { ...eventData, id: `event_${Date.now()}`, currentParticipants: 0, totalPoints, status: "upcoming" };
     const next = [...events, newEvent];
-    setEvents(next);
-    await saveEvents(next);
-
-    if (user) {
-      const updatedUser = { ...user, eventsCreated: user.eventsCreated + 1 };
-      setUser(updatedUser);
-      await saveUser(updatedUser);
-    }
-
+    setEvents(next); await saveEvents(next);
+    if (user) { const u = { ...user, eventsCreated: user.eventsCreated + 1 }; setUser(u); await saveUser(u); }
     return newEvent;
   };
 
-  const bookEvent = async (eventId: string): Promise<Booking | null> => {
+  const bookEvent = async (eventId: string, role?: string): Promise<Booking | null> => {
     if (!user) return null;
-
     const event = events.find(e => e.id === eventId);
     if (!event || event.currentParticipants >= event.maxParticipants) return null;
-
-    const alreadyBooked = bookings.find(b => b.eventId === eventId && b.userId === user.id && b.status === "active");
-    if (alreadyBooked) return alreadyBooked;
-
+    const already = bookings.find(b => b.eventId === eventId && b.userId === user.id && b.status === "active");
+    if (already) return already;
     const registrationOrder = event.currentParticipants + 1;
     const pointsEarned = computePointsForBooking(event, registrationOrder);
-
     const booking: Booking = {
-      id: `booking_${Date.now()}`,
-      eventId,
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
-      registrationOrder,
-      qrCode: `ALVEE-${eventId}-${user.id}-${Date.now()}`,
-      nfcLinked: false,
-      status: "active",
-      pointsEarned,
-      bookedAt: new Date().toISOString(),
+      id: `booking_${Date.now()}`, eventId, userId: user.id, userName: user.name, userEmail: user.email,
+      registrationOrder, qrCode: `ALVEE-${eventId}-${user.id}-${Date.now()}`,
+      nfcLinked: false, status: "active", pointsEarned, bookedAt: new Date().toISOString(), role,
     };
-
     const nextBookings = [...bookings, booking];
-    setBookings(nextBookings);
-    await saveBookings(nextBookings);
-
-    const nextEvents = events.map(e =>
-      e.id === eventId ? { ...e, currentParticipants: e.currentParticipants + 1 } : e
-    );
-    setEvents(nextEvents);
-    await saveEvents(nextEvents);
-
+    setBookings(nextBookings); await saveBookings(nextBookings);
+    const nextEvents = events.map(e => e.id === eventId ? { ...e, currentParticipants: e.currentParticipants + 1 } : e);
+    setEvents(nextEvents); await saveEvents(nextEvents);
     addPoints(pointsEarned, "event_booking", `Inscription: ${event.title}`, eventId);
-
-    const updatedUser = { ...user, points: user.points + pointsEarned };
-    setUser(updatedUser);
-
     return booking;
   };
 
   const cancelBooking = async (bookingId: string) => {
     const next = bookings.map(b => b.id === bookingId ? { ...b, status: "cancelled" as const } : b);
-    setBookings(next);
-    await saveBookings(next);
+    setBookings(next); await saveBookings(next);
   };
 
-  const validateQRCode = async (eventId: string, qrCode: string): Promise<{ success: boolean; message: string }> => {
+  const validateQRCode = async (eventId: string, qrCode: string) => {
     const booking = bookings.find(b => b.eventId === eventId && b.qrCode === qrCode && b.status === "active");
     if (!booking) return { success: false, message: "QR code invalide ou déjà utilisé" };
-
     const next = bookings.map(b => b.id === booking.id ? { ...b, status: "used" as const } : b);
-    setBookings(next);
-    await saveBookings(next);
-    return { success: true, message: `Entrée validée pour ${booking.userName}` };
+    setBookings(next); await saveBookings(next);
+    return { success: true, message: `Entrée validée — ${booking.userName}` };
   };
 
-  const validateNFC = async (eventId: string, nfcCardId: string): Promise<{ success: boolean; message: string }> => {
+  const validateNFC = async (eventId: string, nfcCardId: string) => {
     const booking = bookings.find(b => b.eventId === eventId && b.nfcCardId === nfcCardId && b.status === "active");
     if (!booking) return { success: false, message: "Carte NFC non reconnue pour cet événement" };
-
     const next = bookings.map(b => b.id === booking.id ? { ...b, status: "used" as const } : b);
-    setBookings(next);
-    await saveBookings(next);
-    return { success: true, message: `Entrée validée via NFC pour ${booking.userName}` };
+    setBookings(next); await saveBookings(next);
+    return { success: true, message: `Entrée NFC validée — ${booking.userName}` };
   };
 
-  const linkNFCToBooking = async (bookingId: string, nfcCardId: string): Promise<boolean> => {
-    const next = bookings.map(b =>
-      b.id === bookingId ? { ...b, nfcLinked: true, nfcCardId } : b
-    );
-    setBookings(next);
-    await saveBookings(next);
-    if (user) {
-      const updatedUser = { ...user, nfcCardId };
-      setUser(updatedUser);
-      await saveUser(updatedUser);
-    }
+  const linkNFCToBooking = async (bookingId: string, nfcCardId: string) => {
+    const next = bookings.map(b => b.id === bookingId ? { ...b, nfcLinked: true, nfcCardId } : b);
+    setBookings(next); await saveBookings(next);
+    if (user) { const u = { ...user, nfcCardId }; setUser(u); await saveUser(u); }
     return true;
   };
 
-  const orderNFCCard = async (): Promise<boolean> => {
+  const orderNFCCard = async () => {
     if (!user) return false;
     const nfcCardId = `NFC-${Date.now().toString(36).toUpperCase()}`;
     const updated = { ...user, nfcCardOrdered: true, nfcCardId };
-    setUser(updated);
-    await saveUser(updated);
+    setUser(updated); await saveUser(updated);
     return true;
   };
 
   const completeSurvey = async (eventId: string, rating: number, _feedback: string) => {
-    const bonusPoints = 50 + (rating * 10);
+    const bonusPoints = 50 + rating * 10;
     const event = events.find(e => e.id === eventId);
     addPoints(bonusPoints, "survey_bonus", `Sondage: ${event?.title ?? "Événement"}`, eventId);
-
-    const nextEvents = events.map(e =>
-      e.id === eventId ? { ...e, surveyCompleted: true } : e
-    );
-    setEvents(nextEvents);
-    await saveEvents(nextEvents);
+    const next = events.map(e => e.id === eventId ? { ...e, surveyCompleted: true } : e);
+    setEvents(next); await saveEvents(next);
   };
 
-  const getUserBookingForEvent = (eventId: string): Booking | undefined => {
+  const getUserBookingForEvent = (eventId: string) => {
     if (!user) return undefined;
     return bookings.find(b => b.eventId === eventId && b.userId === user.id && b.status === "active");
   };
 
-  const getEventBookings = (eventId: string): Booking[] => {
-    return bookings.filter(b => b.eventId === eventId);
-  };
+  const getEventBookings = (eventId: string) => bookings.filter(b => b.eventId === eventId);
 
   const updateEvent = async (eventId: string, updates: Partial<Event>) => {
     const next = events.map(e => e.id === eventId ? { ...e, ...updates } : e);
-    setEvents(next);
-    await saveEvents(next);
+    setEvents(next); await saveEvents(next);
   };
 
-  const cancelEvent = async (eventId: string) => {
-    await updateEvent(eventId, { status: "cancelled" });
-  };
+  const cancelEvent = async (eventId: string) => updateEvent(eventId, { status: "cancelled" });
 
   return (
     <AppContext.Provider value={{
       user, events, bookings, pointTransactions, isAuthenticated,
-      login, register, logout,
-      createEvent, bookEvent, cancelBooking,
-      validateQRCode, validateNFC,
-      linkNFCToBooking, orderNFCCard,
-      completeSurvey,
-      getUserBookingForEvent, getEventBookings,
-      updateEvent, cancelEvent,
-      addPoints,
+      login, register, logout, createEvent, bookEvent, cancelBooking,
+      validateQRCode, validateNFC, linkNFCToBooking, orderNFCCard, completeSurvey,
+      getUserBookingForEvent, getEventBookings, updateEvent, cancelEvent, addPoints,
     }}>
       {children}
     </AppContext.Provider>

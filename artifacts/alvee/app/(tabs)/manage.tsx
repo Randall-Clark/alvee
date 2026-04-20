@@ -16,35 +16,33 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { NFCScanner } from "@/components/NFCScanner";
-import { QRCodeDisplay } from "@/components/QRCodeDisplay";
-import { useApp } from "@/context/AppContext";
 import type { Event } from "@/context/AppContext";
+import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
 export default function ManageScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, events, bookings, isAuthenticated, validateQRCode, validateNFC, cancelEvent, getEventBookings } = useApp();
-
+  const { user, events, isAuthenticated, validateQRCode, validateNFC, cancelEvent, getEventBookings } = useApp();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [scanMode, setScanMode] = useState<"qr" | "nfc" | null>(null);
   const [qrInput, setQrInput] = useState("");
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
   const [nfcVisible, setNfcVisible] = useState(false);
-
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   if (!isAuthenticated) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { paddingTop: topPadding + 16 }]}>
-          <Text style={[styles.title, { color: colors.foreground }]}>Gérer mes événements</Text>
+        <View style={[styles.header, { paddingTop: topPad + 16 }]}>
+          <Text style={styles.title}>Gérer</Text>
         </View>
         <View style={styles.center}>
-          <Feather name="settings" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Connexion requise</Text>
-          <Pressable style={[styles.authBtn, { backgroundColor: colors.primary }]} onPress={() => router.push("/auth")}>
-            <Text style={styles.authBtnText}>Se connecter</Text>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
+            <Feather name="settings" size={40} color={colors.mutedForeground} />
+          </View>
+          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Pressable style={[styles.ctaBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/auth")}>
+            <Text style={styles.ctaBtnText}>Se connecter</Text>
           </Pressable>
         </View>
       </View>
@@ -57,11 +55,7 @@ export default function ManageScreen() {
     if (!selectedEvent || !qrInput.trim()) return;
     const result = await validateQRCode(selectedEvent.id, qrInput.trim());
     setScanResult(result);
-    if (result.success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
+    Haptics.notificationAsync(result.success ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
     setQrInput("");
   };
 
@@ -70,126 +64,90 @@ export default function ManageScreen() {
     setNfcVisible(false);
     const result = await validateNFC(selectedEvent.id, cardId);
     setScanResult(result);
-    if (result.success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
+    Haptics.notificationAsync(result.success ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
   };
 
-  const handleCancelEvent = (eventId: string) => {
-    Alert.alert(
-      "Annuler l'événement",
-      "Êtes-vous sûr de vouloir annuler cet événement ? Cette action est irréversible.",
-      [
-        { text: "Non", style: "cancel" },
-        {
-          text: "Oui, annuler",
-          style: "destructive",
-          onPress: () => {
-            cancelEvent(eventId);
-            if (selectedEvent?.id === eventId) setSelectedEvent(null);
-          },
-        },
-      ]
-    );
-  };
+  const handleCancel = (eventId: string) => Alert.alert("Annuler", "Annuler cet événement ?", [
+    { text: "Non", style: "cancel" },
+    { text: "Annuler", style: "destructive", onPress: () => { cancelEvent(eventId); if (selectedEvent?.id === eventId) setSelectedEvent(null); } },
+  ]);
 
-  const eventBookings = selectedEvent ? getEventBookings(selectedEvent.id) : [];
-  const activeBookings = eventBookings.filter(b => b.status === "active");
-  const usedBookings = eventBookings.filter(b => b.status === "used");
+  const eBookings = selectedEvent ? getEventBookings(selectedEvent.id) : [];
+  const activeB = eBookings.filter(b => b.status === "active");
+  const usedB = eBookings.filter(b => b.status === "used");
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 16, backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.foreground }]}>Mes événements</Text>
-        <Pressable
-          style={[styles.createBtn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/create")}
-        >
-          <Feather name="plus" size={16} color="#fff" />
+      <View style={[styles.header, { paddingTop: topPad + 16 }]}>
+        <Text style={styles.title}>Mes événements</Text>
+        <Pressable style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/create")}>
+          <Feather name="plus" size={16} color="#0D0D0D" />
         </Pressable>
       </View>
 
       {myEvents.length === 0 ? (
         <View style={styles.center}>
-          <Feather name="calendar" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Aucun événement créé</Text>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
+            <Feather name="calendar" size={40} color={colors.mutedForeground} />
+          </View>
+          <Text style={styles.emptyTitle}>Aucun événement créé</Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Créez votre premier événement</Text>
-          <Pressable style={[styles.authBtn, { backgroundColor: colors.primary }]} onPress={() => router.push("/create")}>
-            <Text style={styles.authBtnText}>Créer un événement</Text>
+          <Pressable style={[styles.ctaBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/create")}>
+            <Text style={styles.ctaBtnText}>Créer un événement</Text>
           </Pressable>
         </View>
       ) : (
         <FlatList
           data={myEvents}
           keyExtractor={item => item.id}
-          contentContainerStyle={[
-            styles.list,
-            { paddingBottom: Platform.OS === "web" ? 90 + 34 : 90 + insets.bottom },
-          ]}
+          contentContainerStyle={[styles.list, { paddingBottom: Platform.OS === "web" ? 100 : 80 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item: event }) => {
-            const eb = getEventBookings(event.id);
+          renderItem={({ item: ev }) => {
+            const eb = getEventBookings(ev.id);
             const active = eb.filter(b => b.status === "active").length;
             const used = eb.filter(b => b.status === "used").length;
-            const fillRate = event.maxParticipants > 0 ? event.currentParticipants / event.maxParticipants : 0;
+            const fill = (ev.currentParticipants / Math.max(ev.maxParticipants, 1)) * 100;
 
             return (
-              <Pressable
-                style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => setSelectedEvent(event)}
-              >
-                <View style={styles.eventCardTop}>
-                  <Text style={[styles.eventTitle, { color: colors.foreground }]} numberOfLines={1}>
-                    {event.title}
-                  </Text>
-                  <View style={[styles.statusBadge, { backgroundColor: event.status === "upcoming" ? colors.primary + "20" : colors.mutedForeground + "20" }]}>
-                    <Text style={[styles.statusText, { color: event.status === "upcoming" ? colors.primary : colors.mutedForeground }]}>
-                      {event.status === "upcoming" ? "À venir" : event.status}
-                    </Text>
+              <View style={[styles.evCard, { backgroundColor: colors.card }]}>
+                <View style={styles.evTop}>
+                  <Text style={styles.evTitle} numberOfLines={1}>{ev.title}</Text>
+                  <View style={[styles.evStatus, { backgroundColor: colors.gold + "20" }]}>
+                    <Text style={[styles.evStatusText, { color: colors.gold }]}>À venir</Text>
                   </View>
                 </View>
 
-                <View style={styles.eventMeta}>
-                  <View style={styles.metaItem}>
-                    <Feather name="calendar" size={12} color={colors.mutedForeground} />
-                    <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-                      {new Date(event.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                <View style={styles.evMeta}>
+                  <View style={styles.evMetaItem}>
+                    <Feather name="calendar" size={11} color={colors.mutedForeground} />
+                    <Text style={[styles.evMetaText, { color: colors.mutedForeground }]}>
+                      {new Date(ev.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                     </Text>
                   </View>
-                  <View style={styles.metaItem}>
-                    <Feather name="users" size={12} color={colors.mutedForeground} />
-                    <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-                      {event.currentParticipants}/{event.maxParticipants}
-                    </Text>
+                  <View style={styles.evMetaItem}>
+                    <Feather name="users" size={11} color={colors.mutedForeground} />
+                    <Text style={[styles.evMetaText, { color: colors.mutedForeground }]}>{ev.currentParticipants}/{ev.maxParticipants}</Text>
                   </View>
-                  <View style={styles.metaItem}>
-                    <Feather name="check" size={12} color={colors.success} />
-                    <Text style={[styles.metaText, { color: colors.success }]}>{used} validés</Text>
+                  <View style={styles.evMetaItem}>
+                    <Feather name="check" size={11} color={colors.success} />
+                    <Text style={[styles.evMetaText, { color: colors.success }]}>{used} validés</Text>
                   </View>
                 </View>
 
-                <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-                  <View style={[styles.progressFill, { width: `${fillRate * 100}%` as any, backgroundColor: colors.primary }]} />
+                <View style={[styles.progressBar, { backgroundColor: colors.muted }]}>
+                  <View style={[styles.progressFill, { width: `${fill}%` as any, backgroundColor: colors.gold }]} />
                 </View>
 
-                <View style={styles.eventCardActions}>
-                  <Pressable
-                    style={[styles.manageBtn, { backgroundColor: colors.primary }]}
-                    onPress={() => setSelectedEvent(event)}
-                  >
-                    <Feather name="settings" size={14} color="#fff" />
+                <View style={styles.evActions}>
+                  <Pressable style={[styles.manageBtn, { backgroundColor: colors.gold }]} onPress={() => { setScanResult(null); setSelectedEvent(ev); }}>
+                    <Feather name="settings" size={14} color="#0D0D0D" />
                     <Text style={styles.manageBtnText}>Gérer</Text>
                   </Pressable>
-                  <Pressable
-                    style={[styles.cancelEventBtn, { borderColor: colors.destructive + "40" }]}
-                    onPress={() => handleCancelEvent(event.id)}
-                  >
+                  <Pressable style={[styles.deleteBtn, { borderColor: colors.destructive + "40" }]} onPress={() => handleCancel(ev.id)}>
                     <Feather name="x" size={14} color={colors.destructive} />
                   </Pressable>
                 </View>
-              </Pressable>
+              </View>
             );
           }}
         />
@@ -200,77 +158,73 @@ export default function ManageScreen() {
           <View style={[styles.modal, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <Pressable onPress={() => { setSelectedEvent(null); setScanResult(null); }}>
-                <Feather name="x" size={22} color={colors.foreground} />
+                <Feather name="arrow-left" size={20} color={colors.foreground} />
               </Pressable>
-              <Text style={[styles.modalTitle, { color: colors.foreground }]} numberOfLines={1}>
-                {selectedEvent.title}
-              </Text>
-              <View style={{ width: 22 }} />
+              <Text style={[styles.modalTitle, { color: colors.foreground }]} numberOfLines={1}>{selectedEvent.title}</Text>
+              <View style={{ width: 20 }} />
             </View>
 
             <View style={styles.modalStats}>
-              <StatCard label="Inscrits" value={activeBookings.length.toString()} color={colors.primary} icon="users" colors={colors} />
-              <StatCard label="Validés" value={usedBookings.length.toString()} color={colors.success} icon="check-circle" colors={colors} />
-              <StatCard label="Places" value={`${selectedEvent.currentParticipants}/${selectedEvent.maxParticipants}`} color={colors.accent} icon="bar-chart-2" colors={colors} />
+              {[
+                { icon: "users", val: activeB.length.toString(), label: "Inscrits", color: colors.gold },
+                { icon: "check-circle", val: usedB.length.toString(), label: "Validés", color: colors.success },
+                { icon: "bar-chart-2", val: `${selectedEvent.currentParticipants}/${selectedEvent.maxParticipants}`, label: "Places", color: colors.mutedForeground },
+              ].map(s => (
+                <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card }]}>
+                  <Feather name={s.icon as any} size={16} color={s.color} />
+                  <Text style={[styles.statVal, { color: s.color }]}>{s.val}</Text>
+                  <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+                </View>
+              ))}
             </View>
 
-            <View style={[styles.scanSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.scanTitle, { color: colors.foreground }]}>Scanner une entrée</Text>
+            <View style={[styles.scanCard, { backgroundColor: colors.card, marginHorizontal: 16 }]}>
+              <Text style={[styles.scanTitle, { color: colors.foreground }]}>Valider une entrée</Text>
 
-              <View style={[styles.qrInputRow, { borderColor: colors.border }]}>
-                <Feather name="maximize" size={16} color={colors.mutedForeground} />
+              <View style={[styles.qrRow, { borderColor: colors.border }]}>
+                <Feather name="maximize" size={14} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.qrInput, { color: colors.foreground }]}
-                  placeholder="Coller ou saisir le code QR"
+                  placeholder="Saisir ou scanner le code QR"
                   placeholderTextColor={colors.mutedForeground}
                   value={qrInput}
                   onChangeText={setQrInput}
                 />
-                <Pressable
-                  style={[styles.scanSubmitBtn, { backgroundColor: colors.primary, opacity: qrInput.trim() ? 1 : 0.4 }]}
-                  onPress={handleScanQR}
-                  disabled={!qrInput.trim()}
-                >
-                  <Feather name="check" size={16} color="#fff" />
+                <Pressable style={[styles.qrSubmit, { backgroundColor: colors.gold, opacity: qrInput.trim() ? 1 : 0.4 }]} onPress={handleScanQR} disabled={!qrInput.trim()}>
+                  <Feather name="check" size={15} color="#0D0D0D" />
                 </Pressable>
               </View>
 
-              <Pressable
-                style={[styles.nfcBtn, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "30" }]}
-                onPress={() => setNfcVisible(true)}
-              >
-                <Feather name="wifi" size={16} color={colors.primary} />
-                <Text style={[styles.nfcBtnText, { color: colors.primary }]}>Scanner une carte NFC</Text>
+              <Pressable style={[styles.nfcBtn, { backgroundColor: colors.gold + "15", borderColor: colors.gold + "30" }]} onPress={() => setNfcVisible(true)}>
+                <Feather name="wifi" size={15} color={colors.gold} />
+                <Text style={[styles.nfcBtnText, { color: colors.gold }]}>Scanner une carte NFC</Text>
               </Pressable>
 
               {scanResult && (
                 <View style={[styles.scanResult, { backgroundColor: scanResult.success ? colors.success + "15" : colors.destructive + "15" }]}>
-                  <Feather name={scanResult.success ? "check-circle" : "x-circle"} size={18} color={scanResult.success ? colors.success : colors.destructive} />
-                  <Text style={[styles.scanResultText, { color: scanResult.success ? colors.success : colors.destructive }]}>
-                    {scanResult.message}
-                  </Text>
+                  <Feather name={scanResult.success ? "check-circle" : "x-circle"} size={16} color={scanResult.success ? colors.success : colors.destructive} />
+                  <Text style={[styles.scanResultText, { color: scanResult.success ? colors.success : colors.destructive }]}>{scanResult.message}</Text>
                 </View>
               )}
             </View>
 
             <FlatList
-              data={activeBookings}
+              data={activeB}
               keyExtractor={item => item.id}
-              style={{ flex: 1 }}
-              contentContainerStyle={{ padding: 16, gap: 8 }}
+              style={{ flex: 1, marginTop: 16 }}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
               ListHeaderComponent={
-                <Text style={[styles.listHeader, { color: colors.mutedForeground }]}>Participants inscrits ({activeBookings.length})</Text>
+                <Text style={[styles.participantsLabel, { color: colors.mutedForeground }]}>Participants ({activeB.length})</Text>
               }
               renderItem={({ item: b }) => (
-                <View style={[styles.participantRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={[styles.avatarSmall, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.avatarSmallText}>{b.userName.charAt(0).toUpperCase()}</Text>
+                <View style={[styles.participantRow, { backgroundColor: colors.card }]}>
+                  <View style={[styles.pAvatar, { backgroundColor: colors.gold + "30" }]}>
+                    <Text style={[styles.pAvatarText, { color: colors.gold }]}>{b.userName.charAt(0).toUpperCase()}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.participantName, { color: colors.foreground }]}>{b.userName}</Text>
-                    <Text style={[styles.participantMeta, { color: colors.mutedForeground }]}>#{b.registrationOrder} • {b.nfcLinked ? "NFC lié" : "QR uniquement"}</Text>
+                    <Text style={[styles.pName, { color: colors.foreground }]}>{b.userName}</Text>
+                    <Text style={[styles.pMeta, { color: colors.mutedForeground }]}>#{b.registrationOrder}{b.role ? ` · ${b.role}` : ""}{b.nfcLinked ? " · NFC lié" : ""}</Text>
                   </View>
-                  <Feather name="check" size={14} color={colors.success} style={{ opacity: b.nfcLinked ? 1 : 0 }} />
                 </View>
               )}
             />
@@ -278,74 +232,57 @@ export default function ManageScreen() {
         )}
       </Modal>
 
-      <NFCScanner
-        visible={nfcVisible}
-        onClose={() => setNfcVisible(false)}
-        onNFCDetected={handleNFCScan}
-        title="Scanner carte NFC"
-      />
+      <NFCScanner visible={nfcVisible} onClose={() => setNfcVisible(false)} onNFCDetected={handleNFCScan} title="Scanner carte NFC" />
     </View>
   );
 }
-
-function StatCard({ label, value, color, icon, colors }: any) {
-  return (
-    <View style={[statStyles.card, { backgroundColor: color + "15", borderColor: color + "30" }]}>
-      <Feather name={icon} size={18} color={color} />
-      <Text style={[statStyles.value, { color }]}>{value}</Text>
-      <Text style={[statStyles.label, { color: colors.mutedForeground }]}>{label}</Text>
-    </View>
-  );
-}
-
-const statStyles = StyleSheet.create({
-  card: { flex: 1, borderRadius: 12, borderWidth: 1, alignItems: "center", padding: 12, gap: 4 },
-  value: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  label: { fontSize: 11, fontFamily: "Inter_400Regular" },
-});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  createBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
+  header: { paddingHorizontal: 20, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  title: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  addBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 40 },
+  emptyIcon: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
-  authBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, marginTop: 4 },
-  authBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  list: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
-  eventCard: { borderRadius: 16, borderWidth: 1, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  eventCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  eventTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", flex: 1, marginRight: 8 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  statusText: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  eventMeta: { flexDirection: "row", gap: 12, marginBottom: 8 },
-  metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  ctaBtn: { paddingHorizontal: 28, paddingVertical: 13, borderRadius: 14 },
+  ctaBtnText: { color: "#0D0D0D", fontSize: 14, fontFamily: "Inter_700Bold" },
+  list: { paddingHorizontal: 20, paddingTop: 4, gap: 12 },
+  evCard: { borderRadius: 18, padding: 16 },
+  evTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  evTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFFFFF", flex: 1, marginRight: 8 },
+  evStatus: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10 },
+  evStatusText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  evMeta: { flexDirection: "row", gap: 14, marginBottom: 10 },
+  evMetaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  evMetaText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   progressBar: { height: 3, borderRadius: 2, overflow: "hidden", marginBottom: 12 },
   progressFill: { height: "100%", borderRadius: 2 },
-  eventCardActions: { flexDirection: "row", gap: 8 },
-  manageBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10 },
-  manageBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  cancelEventBtn: { width: 40, height: 40, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  evActions: { flexDirection: "row", gap: 8 },
+  manageBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 12 },
+  manageBtnText: { color: "#0D0D0D", fontSize: 13, fontFamily: "Inter_700Bold" },
+  deleteBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   modal: { flex: 1 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1 },
-  modalTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", flex: 1, textAlign: "center" },
-  modalStats: { flexDirection: "row", gap: 8, padding: 16 },
-  scanSection: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, padding: 16, gap: 12 },
+  modalTitle: { fontSize: 16, fontFamily: "Inter_700Bold", flex: 1, textAlign: "center" },
+  modalStats: { flexDirection: "row", gap: 10, padding: 16 },
+  statCard: { flex: 1, borderRadius: 14, padding: 12, alignItems: "center", gap: 4 },
+  statVal: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  statLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  scanCard: { borderRadius: 16, padding: 16, gap: 10 },
   scanTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  qrInputRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, overflow: "hidden" },
-  qrInput: { flex: 1, paddingVertical: 10, fontSize: 13, fontFamily: "Inter_400Regular" },
-  scanSubmitBtn: { padding: 8, margin: 4, borderRadius: 8 },
+  qrRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, overflow: "hidden" },
+  qrInput: { flex: 1, paddingVertical: 11, fontSize: 13, fontFamily: "Inter_400Regular" },
+  qrSubmit: { padding: 9, margin: 4, borderRadius: 9 },
   nfcBtn: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, justifyContent: "center" },
-  nfcBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  nfcBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   scanResult: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
   scanResultText: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
-  listHeader: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
-  participantRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1 },
-  avatarSmall: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  avatarSmallText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  participantName: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  participantMeta: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  participantsLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  participantRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12 },
+  pAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  pAvatarText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  pName: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  pMeta: { fontSize: 11, fontFamily: "Inter_400Regular" },
 });

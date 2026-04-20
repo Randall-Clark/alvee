@@ -25,101 +25,70 @@ export function NFCScanner({ visible, onClose, onNFCDetected, title = "Scanner N
   const [manualId, setManualId] = useState("");
   const [scanning, setScanning] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      startAnimation();
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.18, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+        ])
+      ).start();
     }
-    return () => {
-      pulseAnim.stopAnimation();
-      rotateAnim.stopAnimation();
-    };
+    return () => pulseAnim.stopAnimation();
   }, [visible]);
 
-  const startAnimation = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.15, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ])
-    ).start();
-  };
-
-  const handleSimulateNFC = () => {
+  const handleSimulate = () => {
     setScanning(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setTimeout(() => {
-      const fakeId = `NFC-${Date.now().toString(36).toUpperCase()}`;
       setScanning(false);
-      onNFCDetected(fakeId);
+      onNFCDetected(`NFC-${Date.now().toString(36).toUpperCase()}`);
     }, 1500);
   };
 
-  const handleManualSubmit = () => {
-    if (manualId.trim()) {
-      onNFCDetected(manualId.trim().toUpperCase());
-      setManualId("");
-    }
+  const handleManual = () => {
+    if (manualId.trim()) { onNFCDetected(manualId.trim().toUpperCase()); setManualId(""); }
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: colors.card }]}>
+        <View style={[styles.sheet, { backgroundColor: "#1A1A1A" }]}>
           <View style={styles.handle} />
-          <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
+          <Text style={styles.title}>{title}</Text>
 
           <View style={styles.nfcArea}>
-            <Animated.View
-              style={[
-                styles.nfcRing,
-                {
-                  borderColor: colors.primary + "40",
-                  transform: [{ scale: pulseAnim }],
-                },
-              ]}
-            />
-            <View style={[styles.nfcInner, { backgroundColor: colors.primary + "15" }]}>
-              <Feather name="wifi" size={40} color={colors.primary} />
+            <Animated.View style={[styles.nfcRing, { transform: [{ scale: pulseAnim }] }]} />
+            <View style={[styles.nfcInner, { backgroundColor: colors.gold + "20" }]}>
+              <Feather name="wifi" size={36} color={colors.gold} />
             </View>
           </View>
 
-          <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-            Approchez la carte NFC Alvee du téléphone
-          </Text>
+          <Text style={[styles.hint, { color: colors.mutedForeground }]}>Approchez votre carte NFC Alvee</Text>
 
-          <Pressable
-            style={[styles.simulateBtn, { backgroundColor: colors.primary }]}
-            onPress={handleSimulateNFC}
-          >
-            <Feather name="zap" size={16} color="#fff" />
-            <Text style={styles.simulateBtnText}>
-              {scanning ? "Détection en cours..." : "Simuler détection NFC"}
-            </Text>
+          <Pressable style={[styles.simBtn, { backgroundColor: colors.gold }]} onPress={handleSimulate}>
+            <Feather name="zap" size={16} color="#0D0D0D" />
+            <Text style={styles.simBtnText}>{scanning ? "Détection..." : "Simuler détection NFC"}</Text>
           </Pressable>
 
-          <View style={styles.divider}>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>ou saisir manuellement</Text>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          <View style={styles.divRow}>
+            <View style={[styles.divLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.divText, { color: colors.mutedForeground }]}>ou saisir manuellement</Text>
+            <View style={[styles.divLine, { backgroundColor: colors.border }]} />
           </View>
 
-          <View style={[styles.inputRow, { borderColor: colors.border }]}>
+          <View style={[styles.manualRow, { borderColor: colors.border, backgroundColor: colors.muted }]}>
             <TextInput
-              style={[styles.input, { color: colors.foreground }]}
-              placeholder="ID de la carte (ex: NFC-ABC123)"
+              style={[styles.manualInput, { color: colors.foreground }]}
+              placeholder="ID carte (ex: NFC-ABC123)"
               placeholderTextColor={colors.mutedForeground}
               value={manualId}
               onChangeText={setManualId}
               autoCapitalize="characters"
             />
-            <Pressable
-              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: manualId.trim() ? 1 : 0.5 }]}
-              onPress={handleManualSubmit}
-              disabled={!manualId.trim()}
-            >
-              <Feather name="arrow-right" size={16} color="#fff" />
+            <Pressable style={[styles.manualSubmit, { backgroundColor: colors.gold, opacity: manualId.trim() ? 1 : 0.4 }]} onPress={handleManual} disabled={!manualId.trim()}>
+              <Feather name="arrow-right" size={16} color="#0D0D0D" />
             </Pressable>
           </View>
 
@@ -133,115 +102,22 @@ export function NFCScanner({ visible, onClose, onNFCDetected, title = "Scanner N
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-    alignItems: "center",
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 2,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "700",
-    fontFamily: "Inter_700Bold",
-    marginBottom: 24,
-  },
-  nfcArea: {
-    width: 140,
-    height: 140,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  nfcRing: {
-    position: "absolute",
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 2,
-  },
-  nfcInner: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  hint: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  simulateBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 14,
-    width: "100%",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  simulateBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    width: "100%",
-    marginBottom: 16,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  dividerText: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderRadius: 12,
-    overflow: "hidden",
-    width: "100%",
-    marginBottom: 16,
-  },
-  input: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-  },
-  submitBtn: {
-    padding: 12,
-    margin: 4,
-    borderRadius: 8,
-  },
-  cancelBtn: {
-    padding: 12,
-  },
-  cancelText: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44, alignItems: "center", gap: 16 },
+  handle: { width: 36, height: 4, backgroundColor: "#333", borderRadius: 2 },
+  title: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  nfcArea: { width: 130, height: 130, alignItems: "center", justifyContent: "center" },
+  nfcRing: { position: "absolute", width: 130, height: 130, borderRadius: 65, borderWidth: 2, borderColor: "rgba(201,168,76,0.35)" },
+  nfcInner: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
+  hint: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+  simBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14, width: "100%", justifyContent: "center" },
+  simBtnText: { color: "#0D0D0D", fontSize: 15, fontFamily: "Inter_700Bold" },
+  divRow: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%" },
+  divLine: { flex: 1, height: 1 },
+  divText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  manualRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, overflow: "hidden", width: "100%" },
+  manualInput: { flex: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular" },
+  manualSubmit: { padding: 12, margin: 4, borderRadius: 9 },
+  cancelBtn: { paddingVertical: 8 },
+  cancelText: { fontSize: 14, fontFamily: "Inter_500Medium" },
 });

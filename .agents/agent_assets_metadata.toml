@@ -18,3 +18,27 @@ id = "V9aFX-vH4vPXOFFXIPQbT"
 uri = "file://artifacts/alvee/assets/images/nfc_card.png"
 type = "image"
 title = "alvee nfc card"
+
+[[generated]]
+id = "jf7JQ86wBp-0V_B0QTN5J"
+uri = "file://artifacts/alvee/assets/images/evt_jazz.png"
+type = "image"
+title = "jazz event"
+
+[[generated]]
+id = "B1PX93eIigFtTtiKCM_2D"
+uri = "file://artifacts/alvee/assets/images/evt_tech.png"
+type = "image"
+title = "tech meetup"
+
+[[generated]]
+id = "gRzaiDrOb9Xsvi8iGXxu-"
+uri = "file://artifacts/alvee/assets/images/evt_art.png"
+type = "image"
+title = "art brunch"
+
+[[generated]]
+id = "SwIEwAJcnoTleBxgy-z2G"
+uri = "file://artifacts/alvee/assets/images/evt_run.png"
+type = "image"
+title = "running event"
