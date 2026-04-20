@@ -1,0 +1,20 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "AHrpJPi5Qels4R35qvyaE"
+uri = "file://artifacts/alvee/assets/images/icon.png"
+type = "image"
+title = "alvee app icon"
+
+[[generated]]
+id = "uLhwurXkdoYv9B0QbGEPR"
+uri = "file://artifacts/alvee/assets/images/event_hero.png"
+type = "image"
+title = "event hero banner"
+
+[[generated]]
+id = "V9aFX-vH4vPXOFFXIPQbT"
+uri = "file://artifacts/alvee/assets/images/nfc_card.png"
+type = "image"
+title = "alvee nfc card"

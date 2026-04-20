@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Alvee"
+version = "1.0.0"
+id = "artifacts/alvee"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 19947
+
+[services.development]
+run = "pnpm --filter @workspace/alvee run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/alvee", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/alvee", "run", "serve" ]
+
+[services.env]
+PORT = "19947"
+BASE_PATH = "/"
