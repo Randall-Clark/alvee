@@ -30,7 +30,7 @@ export default function MessagesScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-          <Text style={styles.title}>Messages</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Messages</Text>
         </View>
         <View style={styles.center}>
           <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
@@ -73,7 +73,7 @@ export default function MessagesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <Text style={styles.title}>Messages</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Messages</Text>
         {myEvents.length > 0 && (
           <Pressable style={[styles.composeBtn, { backgroundColor: colors.gold }]}>
             <Feather name="edit-3" size={14} color="#0D0D0D" />
@@ -193,7 +193,7 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  title: { fontSize: 24, fontFamily: "Inter_700Bold" },
   composeBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 40 },
   emptyIcon: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },

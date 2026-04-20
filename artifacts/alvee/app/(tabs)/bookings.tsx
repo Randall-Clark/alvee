@@ -36,9 +36,9 @@ export default function BookingsScreen() {
         </View>
         <View style={styles.center}>
           <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
-            <Feather name="ticket" size={40} color={colors.mutedForeground} />
+            <Feather name="bookmark" size={40} color={colors.mutedForeground} />
           </View>
-          <Text style={styles.authTitle}>Connexion requise</Text>
+          <Text style={[styles.authTitle, { color: colors.foreground }]}>Connexion requise</Text>
           <Text style={[styles.authText, { color: colors.mutedForeground }]}>Connectez-vous pour voir vos billets</Text>
           <Pressable style={[styles.authBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/auth")}>
             <Text style={styles.authBtnText}>Se connecter</Text>
@@ -67,7 +67,7 @@ export default function BookingsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <Text style={styles.title}>Mes billets</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Mes billets</Text>
         <View style={[styles.countBadge, { backgroundColor: colors.gold + "20" }]}>
           <Text style={[styles.countText, { color: colors.gold }]}>{myBookings.length}</Text>
         </View>
@@ -81,9 +81,9 @@ export default function BookingsScreen() {
         ListEmptyComponent={
           <View style={styles.center}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
-              <Feather name="ticket" size={40} color={colors.mutedForeground} />
+              <Feather name="bookmark" size={40} color={colors.mutedForeground} />
             </View>
-            <Text style={styles.authTitle}>Aucun billet</Text>
+            <Text style={[styles.authTitle, { color: colors.foreground }]}>Aucun billet</Text>
             <Text style={[styles.authText, { color: colors.mutedForeground }]}>Inscrivez-vous à un événement pour voir vos billets ici</Text>
             <Pressable style={[styles.authBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/")}>
               <Text style={styles.authBtnText}>Explorer les événements</Text>
@@ -106,7 +106,7 @@ export default function BookingsScreen() {
                   <View style={styles.cardTopLeft}>
                     <View style={[styles.statusDot, { backgroundColor: isUsed ? colors.mutedForeground : colors.success }]} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.eventName} numberOfLines={1}>{event.title}</Text>
+                      <Text style={[styles.eventName, { color: colors.foreground }]} numberOfLines={1}>{event.title}</Text>
                       <View style={styles.cardMeta}>
                         <Text style={[styles.cardDate, { color: colors.mutedForeground }]}>
                           {new Date(event.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} · {event.time}
@@ -189,12 +189,12 @@ export default function BookingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 },
-  title: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  title: { fontSize: 24, fontFamily: "Inter_700Bold" },
   countBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 },
   countText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 40, paddingTop: 60 },
   emptyIcon: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
-  authTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  authTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   authText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
   authBtn: { paddingHorizontal: 28, paddingVertical: 13, borderRadius: 14 },
   authBtnText: { color: "#0D0D0D", fontSize: 14, fontFamily: "Inter_700Bold" },
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 },
   cardTopLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  eventName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFFFFF", marginBottom: 4 },
+  eventName: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
   cardMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
   cardDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
   earlyBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },

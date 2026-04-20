@@ -34,13 +34,13 @@ export default function ManageScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-          <Text style={styles.title}>Gérer</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Gérer</Text>
         </View>
         <View style={styles.center}>
           <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
             <Feather name="settings" size={40} color={colors.mutedForeground} />
           </View>
-          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Connexion requise</Text>
           <Pressable style={[styles.ctaBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/auth")}>
             <Text style={styles.ctaBtnText}>Se connecter</Text>
           </Pressable>
@@ -79,7 +79,7 @@ export default function ManageScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <Text style={styles.title}>Mes événements</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Mes événements</Text>
         <Pressable style={[styles.addBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/create")}>
           <Feather name="plus" size={16} color="#0D0D0D" />
         </Pressable>
@@ -90,7 +90,7 @@ export default function ManageScreen() {
           <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
             <Feather name="calendar" size={40} color={colors.mutedForeground} />
           </View>
-          <Text style={styles.emptyTitle}>Aucun événement créé</Text>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Aucun événement créé</Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Créez votre premier événement</Text>
           <Pressable style={[styles.ctaBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/create")}>
             <Text style={styles.ctaBtnText}>Créer un événement</Text>
@@ -111,7 +111,7 @@ export default function ManageScreen() {
             return (
               <View style={[styles.evCard, { backgroundColor: colors.card }]}>
                 <View style={styles.evTop}>
-                  <Text style={styles.evTitle} numberOfLines={1}>{ev.title}</Text>
+                  <Text style={[styles.evTitle, { color: colors.foreground }]} numberOfLines={1}>{ev.title}</Text>
                   <View style={[styles.evStatus, { backgroundColor: colors.gold + "20" }]}>
                     <Text style={[styles.evStatusText, { color: colors.gold }]}>À venir</Text>
                   </View>
@@ -240,18 +240,18 @@ export default function ManageScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  title: { fontSize: 24, fontFamily: "Inter_700Bold" },
   addBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 40 },
   emptyIcon: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
   ctaBtn: { paddingHorizontal: 28, paddingVertical: 13, borderRadius: 14 },
   ctaBtnText: { color: "#0D0D0D", fontSize: 14, fontFamily: "Inter_700Bold" },
   list: { paddingHorizontal: 20, paddingTop: 4, gap: 12 },
   evCard: { borderRadius: 18, padding: 16 },
   evTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  evTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFFFFF", flex: 1, marginRight: 8 },
+  evTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", flex: 1, marginRight: 8 },
   evStatus: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10 },
   evStatusText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   evMeta: { flexDirection: "row", gap: 14, marginBottom: 10 },
