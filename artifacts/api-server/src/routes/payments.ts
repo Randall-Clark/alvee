@@ -4,10 +4,26 @@ import { eq, and } from "drizzle-orm";
 import { db, events, bookings, users, payments, nfcCards } from "../db/index.js";
 import { requireAuth } from "../middlewares/auth.js";
 import { validate } from "../middlewares/validate.js";
-import { getStripe } from "../lib/stripe.js";
+import { tryGetStripeClient, getUncachableStripeClient } from "../lib/stripe.js";
 import { v4 as uuidv4 } from "uuid";
 
 const router = Router();
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/payments/config
+ * Returns the Stripe publishable key so the mobile app can initialize the Stripe SDK.
+ */
+router.get("/config", async (_req, res) => {
+  try {
+    const { getStripePublishableKey } = await import("../lib/stripe.js");
+    const publishableKey = await getStripePublishableKey();
+    res.json({ publishableKey });
+  } catch {
+    res.status(503).json({ error: "Stripe non configuré" });
+  }
+});
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +70,7 @@ router.post(
       .where(eq(users.id, req.userId!))
       .limit(1);
 
-    const stripe = getStripe();
+    const stripe = await tryGetStripeClient();
 
     if (!stripe) {
       // Development mode — skip payment
@@ -117,8 +133,8 @@ router.post(
 router.post(
   "/webhook",
   // Use raw body for Stripe signature verification
-  (req: Request, res: Response) => {
-    const stripe = getStripe();
+  async (req: Request, res: Response) => {
+    const stripe = await tryGetStripeClient();
 
     if (!stripe) {
       res.status(500).json({ error: "Stripe non configuré" });

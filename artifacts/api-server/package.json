@@ -20,7 +20,8 @@
     "pg": "^8.20.0",
     "pino": "^9",
     "pino-http": "^10",
-    "stripe": "^17.7.0",
+    "stripe": "^20.0.0",
+    "stripe-replit-sync": "^1.0.0",
     "uuid": "^11.1.0",
     "zod": "catalog:"
   },

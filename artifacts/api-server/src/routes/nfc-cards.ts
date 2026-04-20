@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db, nfcCards, users } from "../db/index.js";
 import { requireAuth } from "../middlewares/auth.js";
 import { validate } from "../middlewares/validate.js";
-import { getStripe } from "../lib/stripe.js";
+import { tryGetStripeClient } from "../lib/stripe.js";
 
 const router = Router();
 
@@ -74,7 +74,7 @@ router.post(
       return;
     }
 
-    const stripe = getStripe();
+    const stripe = await tryGetStripeClient();
 
     if (!stripe) {
       // Stripe not configured — return a mock client secret for development
