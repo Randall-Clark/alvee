@@ -20,6 +20,7 @@ export function EventCard({ event, compact, horizontal }: Props) {
   const colors = useColors();
   const isFull = event.currentParticipants >= event.maxParticipants;
   const fillPct = Math.min((event.currentParticipants / Math.max(event.maxParticipants, 1)) * 100, 100);
+  const requiresPrime = event.price >= 300;
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -44,9 +45,15 @@ export function EventCard({ event, compact, horizontal }: Props) {
             <View style={[styles.catPill, { backgroundColor: "rgba(201,168,76,0.25)", borderColor: "rgba(201,168,76,0.4)" }]}>
               <Text style={[styles.catPillText, { color: colors.gold }]}>{event.category}</Text>
             </View>
-            {event.requiresNFC && (
+            {event.nfcOnlyEntry && (
               <View style={[styles.nfcPill, { backgroundColor: "rgba(255,255,255,0.15)" }]}>
                 <Feather name="credit-card" size={9} color="#fff" />
+              </View>
+            )}
+            {requiresPrime && (
+              <View style={[styles.nfcPill, { backgroundColor: "rgba(201,168,76,0.3)" }]}>
+                <Feather name="credit-card" size={9} color={colors.gold} />
+                <Text style={[styles.nfcText, { color: colors.gold }]}>Prime</Text>
               </View>
             )}
           </View>
@@ -72,10 +79,16 @@ export function EventCard({ event, compact, horizontal }: Props) {
           <View style={[styles.catPill, { backgroundColor: "rgba(201,168,76,0.3)", borderColor: "rgba(201,168,76,0.5)" }]}>
             <Text style={[styles.catPillText, { color: colors.gold }]}>{event.category}</Text>
           </View>
-          {event.requiresNFC && (
+          {event.nfcOnlyEntry && (
             <View style={[styles.nfcPill, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
               <Feather name="credit-card" size={9} color="#fff" />
-              <Text style={styles.nfcText}>NFC</Text>
+              <Text style={styles.nfcText}>NFC only</Text>
+            </View>
+          )}
+          {requiresPrime && (
+            <View style={[styles.nfcPill, { backgroundColor: "rgba(201,168,76,0.25)" }]}>
+              <Feather name="credit-card" size={9} color={colors.gold} />
+              <Text style={[styles.nfcText, { color: colors.gold }]}>Prime requis</Text>
             </View>
           )}
         </View>

@@ -1,83 +1,61 @@
-const colors = {
-  light: {
-    text: "#FFFFFF",
-    tint: "#C9A84C",
+const GOLD = "#C9A84C";
+const GOLD_DARK = "#D4A853";
 
-    background: "#0D0D0D",
-    foreground: "#FFFFFF",
-
-    card: "#1A1A1A",
-    cardForeground: "#FFFFFF",
-
-    primary: "#C9A84C",
-    primaryForeground: "#0D0D0D",
-
-    secondary: "#252525",
-    secondaryForeground: "#FFFFFF",
-
-    muted: "#2A2A2A",
-    mutedForeground: "#888888",
-
-    accent: "#C9A84C",
-    accentForeground: "#0D0D0D",
-
-    destructive: "#EF4444",
-    destructiveForeground: "#FFFFFF",
-
-    border: "#2A2A2A",
-    input: "#2A2A2A",
-
-    success: "#22C55E",
-    warning: "#F59E0B",
-    gold: "#C9A84C",
-
-    surface: "#161616",
-    overlay: "rgba(201,168,76,0.12)",
-
-    pill: "#1F1F1F",
-    pillText: "#AAAAAA",
-  },
-
-  dark: {
-    text: "#FFFFFF",
-    tint: "#C9A84C",
-
-    background: "#0D0D0D",
-    foreground: "#FFFFFF",
-
-    card: "#1A1A1A",
-    cardForeground: "#FFFFFF",
-
-    primary: "#C9A84C",
-    primaryForeground: "#0D0D0D",
-
-    secondary: "#252525",
-    secondaryForeground: "#FFFFFF",
-
-    muted: "#2A2A2A",
-    mutedForeground: "#888888",
-
-    accent: "#C9A84C",
-    accentForeground: "#0D0D0D",
-
-    destructive: "#EF4444",
-    destructiveForeground: "#FFFFFF",
-
-    border: "#2A2A2A",
-    input: "#2A2A2A",
-
-    success: "#22C55E",
-    warning: "#F59E0B",
-    gold: "#C9A84C",
-
-    surface: "#161616",
-    overlay: "rgba(201,168,76,0.12)",
-
-    pill: "#1F1F1F",
-    pillText: "#AAAAAA",
-  },
-
-  radius: 16,
+const dark = {
+  text: "#FFFFFF",
+  tint: GOLD,
+  background: "#0D0D0D",
+  foreground: "#FFFFFF",
+  card: "#1A1A1A",
+  cardForeground: "#FFFFFF",
+  primary: GOLD,
+  primaryForeground: "#0D0D0D",
+  secondary: "#252525",
+  secondaryForeground: "#FFFFFF",
+  muted: "#2A2A2A",
+  mutedForeground: "#888888",
+  accent: GOLD,
+  accentForeground: "#0D0D0D",
+  destructive: "#EF4444",
+  destructiveForeground: "#FFFFFF",
+  border: "#2A2A2A",
+  input: "#2A2A2A",
+  success: "#22C55E",
+  warning: "#F59E0B",
+  gold: GOLD,
+  surface: "#161616",
+  overlay: "rgba(201,168,76,0.12)",
+  pill: "#1F1F1F",
+  pillText: "#AAAAAA",
 };
 
+const light = {
+  text: "#111111",
+  tint: GOLD_DARK,
+  background: "#F8F6F1",
+  foreground: "#111111",
+  card: "#FFFFFF",
+  cardForeground: "#111111",
+  primary: GOLD_DARK,
+  primaryForeground: "#FFFFFF",
+  secondary: "#F0EDE6",
+  secondaryForeground: "#111111",
+  muted: "#F0EDE6",
+  mutedForeground: "#777777",
+  accent: GOLD_DARK,
+  accentForeground: "#FFFFFF",
+  destructive: "#DC2626",
+  destructiveForeground: "#FFFFFF",
+  border: "#E8E4DC",
+  input: "#EAE6DE",
+  success: "#16A34A",
+  warning: "#D97706",
+  gold: GOLD_DARK,
+  surface: "#FFFFFF",
+  overlay: "rgba(212,168,83,0.12)",
+  pill: "#F0EDE6",
+  pillText: "#777777",
+};
+
+const colors = { dark, light, radius: 16 };
 export default colors;

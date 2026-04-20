@@ -1,43 +1,28 @@
-import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { Tabs } from "expo-router";
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
+import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
-function NativeTabLayout() {
+function TabBadge({ count }: { count: number }) {
+  if (count === 0) return null;
   return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Explorer</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="create">
-        <Icon sf={{ default: "plus.circle", selected: "plus.circle.fill" }} />
-        <Label>Créer</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="bookings">
-        <Icon sf={{ default: "ticket", selected: "ticket.fill" }} />
-        <Label>Billets</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="manage">
-        <Icon sf={{ default: "slider.horizontal.3", selected: "slider.horizontal.3" }} />
-        <Label>Gérer</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person", selected: "person.fill" }} />
-        <Label>Profil</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <View style={badge.wrap}>
+      <Text style={badge.text}>{count > 9 ? "9+" : count}</Text>
+    </View>
   );
 }
+const badge = StyleSheet.create({
+  wrap: { position: "absolute", top: -4, right: -8, backgroundColor: "#C9A84C", borderRadius: 8, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  text: { color: "#0D0D0D", fontSize: 9, fontFamily: "Inter_700Bold" },
+});
 
-function ClassicTabLayout() {
+export default function TabLayout() {
   const colors = useColors();
+  const { unreadNotifCount, unreadMsgCount } = useApp();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -45,74 +30,73 @@ function ClassicTabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.gold,
-        tabBarInactiveTintColor: "#555555",
+        tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : "#111111",
+          backgroundColor: isIOS ? "transparent" : colors.card,
           borderTopWidth: 1,
-          borderTopColor: "#222222",
+          borderTopColor: colors.border,
           elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          height: isWeb ? 84 : undefined,
         },
         tabBarBackground: () =>
-          isIOS ? (
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111111" }]} />
-          ) : null,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontFamily: "Inter_500Medium",
-          marginBottom: 2,
-        },
+          isIOS ? <BlurView intensity={80} tint={colors.background === "#0D0D0D" ? "dark" : "light"} style={StyleSheet.absoluteFill} /> : null,
+        tabBarLabelStyle: { fontSize: 10, fontFamily: "Inter_500Medium", marginBottom: 2 },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: "Explorer",
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="house" tintColor={color} size={22} /> : <Feather name="compass" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="compass" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: "Messages",
+          tabBarIcon: ({ color }) => (
+            <View>
+              <Feather name="message-circle" size={22} color={color} />
+              <TabBadge count={unreadMsgCount} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="create"
         options={{
           title: "Créer",
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="plus.circle" tintColor={color} size={22} /> : <Feather name="plus-circle" size={22} color={color} />,
+          tabBarIcon: ({ color }) => (
+            <View style={[styles.createIcon, { backgroundColor: color === colors.gold ? colors.gold : colors.muted }]}>
+              <Feather name="plus" size={22} color={color === colors.gold ? "#0D0D0D" : colors.mutedForeground} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
           title: "Billets",
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="ticket" tintColor={color} size={22} /> : <Feather name="bookmark" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="bookmark" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="manage"
         options={{
           title: "Gérer",
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="slider.horizontal.3" tintColor={color} size={22} /> : <Feather name="settings" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="settings" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
-        options={{
-          title: "Profil",
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="person" tintColor={color} size={22} /> : <Feather name="user" size={22} color={color} />,
-        }}
+        options={{ href: null }}
       />
     </Tabs>
   );
 }
 
-export default function TabLayout() {
-  if (isLiquidGlassAvailable()) return <NativeTabLayout />;
-  return <ClassicTabLayout />;
-}
+const styles = StyleSheet.create({
+  createIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+});

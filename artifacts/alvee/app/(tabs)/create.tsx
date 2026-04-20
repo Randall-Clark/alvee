@@ -1,5 +1,8 @@
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -14,6 +17,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -27,14 +31,16 @@ export default function CreateEventScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Social");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [location, setLocation] = useState("");
   const [address, setAddress] = useState("");
   const [price, setPrice] = useState("");
   const [maxParticipants, setMaxParticipants] = useState("");
-  const [requiresNFC, setRequiresNFC] = useState(false);
+  const [nfcOnlyEntry, setNfcOnlyEntry] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [coverImageUri, setCoverImageUri] = useState<string | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -42,13 +48,13 @@ export default function CreateEventScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-          <Text style={styles.title}>Créer</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Créer</Text>
         </View>
         <View style={styles.center}>
           <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
             <Feather name="lock" size={40} color={colors.mutedForeground} />
           </View>
-          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Connexion requise</Text>
           <Pressable style={[styles.ctaBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/auth")}>
             <Text style={styles.ctaBtnText}>Se connecter</Text>
           </Pressable>
@@ -59,15 +65,31 @@ export default function CreateEventScreen() {
 
   const priceNum = parseFloat(price) || 0;
   const maxP = parseInt(maxParticipants) || 0;
-  const totalPoints = Math.floor(priceNum * maxP * 10);
+  const totalPoints = priceNum < 100 ? 20 : priceNum <= 500 ? 45 : 100;
+
+  const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+  const formatTime = (d: Date) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const timeStr = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") { Alert.alert("Permission requise", "Autorisez l'accès à votre galerie pour ajouter une image."); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, allowsEditing: true, aspect: [16, 9] });
+    if (!result.canceled && result.assets[0]) setCoverImageUri(result.assets[0].uri);
+  };
 
   const handleCreate = async () => {
-    if (!title.trim() || !date || !time || !location.trim() || !maxParticipants) {
-      Alert.alert("Champs manquants", "Veuillez remplir tous les champs obligatoires."); return;
+    if (!title.trim() || !location.trim() || !maxParticipants) {
+      Alert.alert("Champs manquants", "Titre, lieu et nombre de places sont obligatoires."); return;
     }
     setLoading(true);
     try {
-      await createEvent({ title: title.trim(), description: description.trim(), category, date, time, location: location.trim(), address: address.trim(), price: priceNum, maxParticipants: maxP, organizerId: user!.id, organizerName: user!.name, requiresNFC });
+      await createEvent({
+        title: title.trim(), description: description.trim(), category, date: dateStr, time: timeStr,
+        location: location.trim(), address: address.trim(), price: priceNum, maxParticipants: maxP,
+        organizerId: user!.id, organizerName: user!.name, nfcOnlyEntry, coverImageUri: coverImageUri ?? undefined,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Événement créé !", "Votre événement est maintenant visible.", [{ text: "OK", onPress: () => router.push("/") }]);
     } catch { Alert.alert("Erreur", "Impossible de créer l'événement."); }
@@ -77,15 +99,31 @@ export default function CreateEventScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-        <Text style={styles.title}>Créer un événement</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Créer un événement</Text>
       </View>
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[styles.content, { paddingBottom: Platform.OS === "web" ? 120 : 100 + insets.bottom }]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingBottom: Platform.OS === "web" ? 120 : 100 + insets.bottom }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+        <Pressable style={[styles.imagePicker, { backgroundColor: colors.card, borderColor: coverImageUri ? colors.gold : colors.border }]} onPress={pickImage}>
+          {coverImageUri ? (
+            <>
+              <Image source={{ uri: coverImageUri }} style={styles.imagePreview} contentFit="cover" />
+              <View style={styles.imageOverlay}>
+                <Feather name="camera" size={18} color="#fff" />
+                <Text style={styles.imageOverlayText}>Changer l'image</Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <View style={[styles.imageIconWrap, { backgroundColor: colors.gold + "20" }]}>
+                <Feather name="camera" size={24} color={colors.gold} />
+              </View>
+              <Text style={[styles.imagePickerTitle, { color: colors.foreground }]}>Ajouter une bannière</Text>
+              <Text style={[styles.imagePickerSub, { color: colors.mutedForeground }]}>Format 16:9 recommandé</Text>
+            </View>
+          )}
+        </Pressable>
+
         <Section title="Informations" colors={colors}>
           <Field label="Titre *" colors={colors}>
             <TextInput style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]} placeholder="Nom de l'événement" placeholderTextColor={colors.mutedForeground} value={title} onChangeText={setTitle} />
@@ -104,57 +142,93 @@ export default function CreateEventScreen() {
           </Field>
         </Section>
 
-        <Section title="Date & Lieu" colors={colors}>
-          <View style={styles.row}>
-            <Field label="Date * (AAAA-MM-JJ)" colors={colors} style={{ flex: 1 }}>
-              <TextInput style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]} placeholder="2026-06-15" placeholderTextColor={colors.mutedForeground} value={date} onChangeText={setDate} />
-            </Field>
-            <Field label="Heure *" colors={colors} style={{ flex: 1 }}>
-              <TextInput style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]} placeholder="20:00" placeholderTextColor={colors.mutedForeground} value={time} onChangeText={setTime} />
-            </Field>
-          </View>
-          <Field label="Lieu *" colors={colors}>
-            <TextInput style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]} placeholder="Nom du lieu" placeholderTextColor={colors.mutedForeground} value={location} onChangeText={setLocation} />
+        <Section title="Date & Heure" colors={colors}>
+          <Pressable style={[styles.dateBtn, { backgroundColor: colors.muted }]} onPress={() => setShowDatePicker(true)}>
+            <Feather name="calendar" size={16} color={colors.gold} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.dateBtnLabel, { color: colors.mutedForeground }]}>Date de l'événement</Text>
+              <Text style={[styles.dateBtnValue, { color: colors.foreground }]}>{formatDate(date)}</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </Pressable>
+
+          <Pressable style={[styles.dateBtn, { backgroundColor: colors.muted }]} onPress={() => setShowTimePicker(true)}>
+            <Feather name="clock" size={16} color={colors.gold} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.dateBtnLabel, { color: colors.mutedForeground }]}>Heure de début</Text>
+              <Text style={[styles.dateBtnValue, { color: colors.foreground }]}>{formatTime(date)}</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </Pressable>
+
+          {(showDatePicker || showTimePicker) && (
+            <DateTimePicker
+              value={date}
+              mode={showDatePicker ? "date" : "time"}
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(_, selected) => {
+                setShowDatePicker(false);
+                setShowTimePicker(false);
+                if (selected) setDate(selected);
+              }}
+              minimumDate={new Date()}
+            />
+          )}
+        </Section>
+
+        <Section title="Lieu" colors={colors}>
+          <Field label="Nom du lieu *" colors={colors}>
+            <TextInput style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]} placeholder="Ex: Station F, Le Grand Rex..." placeholderTextColor={colors.mutedForeground} value={location} onChangeText={setLocation} />
           </Field>
-          <Field label="Adresse" colors={colors}>
-            <TextInput style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]} placeholder="Adresse complète" placeholderTextColor={colors.mutedForeground} value={address} onChangeText={setAddress} />
+          <Field label="Adresse complète" colors={colors}>
+            <View style={[styles.addressWrap, { backgroundColor: colors.muted }]}>
+              <Feather name="map-pin" size={14} color={colors.gold} style={{ marginTop: 12, flexShrink: 0 }} />
+              <TextInput
+                style={[styles.inputFlex, { color: colors.foreground }]}
+                placeholder={"Ex: 5 Parvis Alan Turing\nParis 75013"}
+                placeholderTextColor={colors.mutedForeground}
+                value={address}
+                onChangeText={setAddress}
+                multiline
+                numberOfLines={2}
+                textAlignVertical="top"
+              />
+            </View>
           </Field>
         </Section>
 
         <Section title="Participants & Prix" colors={colors}>
           <View style={styles.row}>
-            <Field label="Prix (€)" colors={colors} style={{ flex: 1 }}>
+            <Field label="Prix ($ CAD)" colors={colors} style={{ flex: 1 }}>
               <TextInput style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]} placeholder="0" placeholderTextColor={colors.mutedForeground} value={price} onChangeText={setPrice} keyboardType="numeric" />
             </Field>
             <Field label="Places max *" colors={colors} style={{ flex: 1 }}>
               <TextInput style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]} placeholder="50" placeholderTextColor={colors.mutedForeground} value={maxParticipants} onChangeText={setMaxParticipants} keyboardType="numeric" />
             </Field>
           </View>
-
-          {totalPoints > 0 && (
+          {priceNum > 0 && (
             <View style={[styles.pointsPreview, { backgroundColor: colors.gold + "15" }]}>
-              <Feather name="zap" size={14} color={colors.gold} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.ptsTitle, { color: colors.gold }]}>{totalPoints.toLocaleString("fr-FR")} points à distribuer</Text>
-                <Text style={[styles.ptsSub, { color: colors.mutedForeground }]}>
-                  40% premiers → {Math.floor(totalPoints * 0.7 / Math.max(Math.floor(maxP * 0.4), 1))} pts/pers (70% pool)
-                </Text>
-                <Text style={[styles.ptsSub, { color: colors.mutedForeground }]}>
-                  60% restants → {Math.floor(totalPoints * 0.3 / Math.max(maxP - Math.floor(maxP * 0.4), 1))} pts/pers (30% pool)
-                </Text>
-              </View>
+              <Feather name="zap" size={13} color={colors.gold} />
+              <Text style={[styles.ptsText, { color: colors.gold }]}>
+                {totalPoints} points distribués aux participants
+                {priceNum >= 300 ? " · Carte Prime requise" : ""}
+              </Text>
             </View>
           )}
         </Section>
 
-        <Section title="Options" colors={colors}>
+        <Section title="Options d'accès" colors={colors}>
           <View style={[styles.switchRow, { borderColor: colors.border }]}>
             <Feather name="credit-card" size={16} color={colors.gold} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.switchLabel, { color: colors.foreground }]}>Carte NFC requise</Text>
-              <Text style={[styles.switchSub, { color: colors.mutedForeground }]}>Pass physique Alvee nécessaire pour l'entrée</Text>
+              <Text style={[styles.switchLabel, { color: colors.foreground }]}>Carte NFC uniquement</Text>
+              <Text style={[styles.switchSub, { color: colors.mutedForeground }]}>
+                {nfcOnlyEntry
+                  ? "Seule la carte physique Alvee sera acceptée à l'entrée."
+                  : "Par défaut : QR code ET carte NFC acceptés à l'entrée."}
+              </Text>
             </View>
-            <Switch value={requiresNFC} onValueChange={setRequiresNFC} trackColor={{ false: colors.border, true: colors.gold + "80" }} thumbColor={requiresNFC ? colors.gold : "#888"} />
+            <Switch value={nfcOnlyEntry} onValueChange={setNfcOnlyEntry} trackColor={{ false: colors.border, true: colors.gold + "80" }} thumbColor={nfcOnlyEntry ? colors.gold : "#888"} />
           </View>
         </Section>
 
@@ -170,7 +244,7 @@ export default function CreateEventScreen() {
 function Section({ title, children, colors }: { title: string; children: React.ReactNode; colors: any }) {
   return (
     <View style={sStyles.section}>
-      <Text style={sStyles.sectionTitle}>{title}</Text>
+      <Text style={[sStyles.sectionTitle, { color: colors.gold }]}>{title}</Text>
       <View style={[sStyles.card, { backgroundColor: colors.card }]}>{children}</View>
     </View>
   );
@@ -187,30 +261,42 @@ function Field({ label, children, colors, style }: { label: string; children: Re
 
 const sStyles = StyleSheet.create({
   section: { marginBottom: 16 },
-  sectionTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#C9A84C", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 12, fontFamily: "Inter_700Bold", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 },
   card: { borderRadius: 16, padding: 16, gap: 14 },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 12 },
-  title: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  title: { fontSize: 24, fontFamily: "Inter_700Bold" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 40 },
   emptyIcon: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   ctaBtn: { paddingHorizontal: 28, paddingVertical: 13, borderRadius: 14 },
   ctaBtnText: { color: "#0D0D0D", fontSize: 14, fontFamily: "Inter_700Bold" },
-  content: { paddingHorizontal: 20, paddingTop: 4, gap: 0 },
+  content: { paddingHorizontal: 20, paddingTop: 4 },
+  imagePicker: { height: 180, borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed", marginBottom: 16, overflow: "hidden" },
+  imagePreview: { width: "100%", height: "100%" },
+  imageOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.5)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 10 },
+  imageOverlayText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  imagePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
+  imageIconWrap: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center" },
+  imagePickerTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  imagePickerSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
   input: { borderRadius: 12, paddingHorizontal: 13, paddingVertical: 11, fontSize: 14, fontFamily: "Inter_400Regular" },
+  inputFlex: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", paddingVertical: 11, paddingRight: 13 },
   textArea: { minHeight: 80 },
+  addressWrap: { flexDirection: "row", gap: 8, borderRadius: 12, paddingLeft: 13, alignItems: "flex-start", minHeight: 60 },
   row: { flexDirection: "row", gap: 10 },
   catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  pointsPreview: { borderRadius: 12, padding: 12, flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  ptsTitle: { fontSize: 12, fontFamily: "Inter_700Bold", marginBottom: 3 },
-  ptsSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  dateBtn: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11 },
+  dateBtnLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  dateBtnValue: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  pointsPreview: { borderRadius: 10, padding: 10, flexDirection: "row", gap: 8, alignItems: "center" },
+  ptsText: { fontSize: 12, fontFamily: "Inter_600SemiBold", flex: 1 },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, padding: 12 },
   switchLabel: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  switchSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 16, borderRadius: 16, marginTop: 8 },
+  switchSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 16, borderRadius: 16, marginTop: 8, marginBottom: 8 },
   createBtnText: { color: "#0D0D0D", fontSize: 16, fontFamily: "Inter_700Bold" },
 });
