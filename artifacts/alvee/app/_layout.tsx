@@ -16,6 +16,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { WebFontsLoader } from "@/components/WebFontsLoader";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 
@@ -57,6 +58,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <WebFontsLoader />
       <ThemeProvider>
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
