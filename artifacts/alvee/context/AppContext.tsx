@@ -19,6 +19,27 @@ export interface User {
   country?: string;
   phone?: string;
   address?: string;
+  referralCode: string;
+  referralCount: number;
+}
+
+export interface EventComment {
+  id: string;
+  eventId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  text: string;
+  rating: number;
+  createdAt: string;
+}
+
+export interface PromoCode {
+  code: string;
+  discountPercent: number;
+  maxUses: number;
+  usedCount: number;
+  expiresAt?: string;
 }
 
 export interface PaymentMethod {
@@ -52,6 +73,10 @@ export interface Event {
   tags?: string[];
   latitude?: number;
   longitude?: number;
+  comments?: EventComment[];
+  promoCode?: PromoCode;
+  payoutSent?: boolean;
+  payoutAccountId?: string;
 }
 
 export interface Booking {
@@ -200,6 +225,11 @@ interface AppContextType {
   computeEventPoints: (priceCad: number) => number;
   requiresMinCard: (price: number) => CardTier | null;
   canAccessEvent: (price: number) => boolean;
+  addComment: (eventId: string, text: string, rating: number) => void;
+  updateProfile: (updates: Partial<Pick<User, "name" | "email" | "phone" | "avatar" | "country">>) => Promise<void>;
+  applyReferralCode: (code: string) => Promise<"ok" | "self" | "maxed" | "invalid">;
+  setEventPromoCode: (eventId: string, promo: PromoCode | undefined) => Promise<void>;
+  requestPayout: (eventId: string, accountId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -278,12 +308,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch { return false; }
   };
 
+  function generateReferralCode(name: string): string {
+    const base = name.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 4).padEnd(4, "X");
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `${base}${rand}`;
+  }
+
   const register = async (name: string, email: string, _pw: string, country?: string, phone?: string, address?: string): Promise<boolean> => {
     try {
       const s = await AsyncStorage.getItem(SK.ALL_USERS);
       const all: User[] = s ? JSON.parse(s) : [];
       if (all.find(u => u.email.toLowerCase() === email.toLowerCase())) return false;
-      const newUser: User = { id: `user_${Date.now()}`, name, email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [], country, phone, address };
+      const newUser: User = { id: `user_${Date.now()}`, name, email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [], country, phone, address, referralCode: generateReferralCode(name), referralCount: 0 };
       all.push(newUser);
       await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(all));
       setUser(newUser); setIsAuthenticated(true); await saveUser(newUser);
@@ -301,7 +337,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setUser(found); setIsAuthenticated(true); await saveUser(found);
         return true;
       }
-      const newUser: User = { id: `user_${Date.now()}`, name: profile.name, email: profile.email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [], country: profile.country, phone: profile.phone };
+      const newUser: User = { id: `user_${Date.now()}`, name: profile.name, email: profile.email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [], country: profile.country, phone: profile.phone, referralCode: generateReferralCode(profile.name), referralCount: 0 };
       all.push(newUser);
       await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(all));
       setUser(newUser); setIsAuthenticated(true); await saveUser(newUser);
@@ -505,6 +541,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUser(u); saveUser(u);
   };
 
+  const addComment = (eventId: string, text: string, rating: number) => {
+    if (!user) return;
+    const comment: EventComment = {
+      id: `cmt_${Date.now()}`, eventId,
+      userId: user.id, userName: user.name, userAvatar: user.avatar,
+      text, rating, createdAt: new Date().toISOString(),
+    };
+    const next = events.map(e => e.id === eventId
+      ? { ...e, comments: [...(e.comments ?? []), comment] }
+      : e
+    );
+    setEvents(next); saveEvents(next);
+  };
+
+  const updateProfile = async (updates: Partial<Pick<User, "name" | "email" | "phone" | "avatar" | "country">>) => {
+    if (!user) return;
+    const updated = { ...user, ...updates };
+    setUser(updated); await saveUser(updated);
+    const s = await AsyncStorage.getItem(SK.ALL_USERS);
+    const all: User[] = s ? JSON.parse(s) : [];
+    const nextAll = all.map(u => u.id === updated.id ? updated : u);
+    await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(nextAll));
+  };
+
+  const applyReferralCode = async (code: string): Promise<"ok" | "self" | "maxed" | "invalid"> => {
+    if (!user) return "invalid";
+    if (code.toUpperCase() === user.referralCode?.toUpperCase()) return "self";
+    const s = await AsyncStorage.getItem(SK.ALL_USERS);
+    const all: User[] = s ? JSON.parse(s) : [];
+    const referrer = all.find(u => u.referralCode?.toUpperCase() === code.toUpperCase());
+    if (!referrer) return "invalid";
+    if ((referrer.referralCount ?? 0) >= 10) return "maxed";
+    const POINTS_PER_REFERRAL = 100;
+    const updatedReferrer = { ...referrer, referralCount: (referrer.referralCount ?? 0) + 1 };
+    const nextAll = all.map(u => u.id === referrer.id ? updatedReferrer : u);
+    await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(nextAll));
+    addPoints(POINTS_PER_REFERRAL, "referral", `Parrainage accepté par ${user.name}`);
+    const referredUser = { ...user };
+    addPoints(50, "referral", `Invitation de ${referrer.name}`);
+    void referredUser;
+    addNotification({ type: "points", title: "Parrainage accepté !", body: `Vous avez gagné 50 points grâce au code de ${referrer.name} !` });
+    return "ok";
+  };
+
+  const setEventPromoCode = async (eventId: string, promo: PromoCode | undefined) => {
+    const next = events.map(e => e.id === eventId ? { ...e, promoCode: promo } : e);
+    setEvents(next); await saveEvents(next);
+  };
+
+  const requestPayout = async (eventId: string, accountId: string) => {
+    const next = events.map(e => e.id === eventId ? { ...e, payoutSent: true, payoutAccountId: accountId } : e);
+    setEvents(next); await saveEvents(next);
+    addNotification({ type: "points", title: "Virement demandé", body: "Votre demande de virement a été enregistrée. Traitement sous 2-3 jours ouvrés." });
+  };
+
   const conversations: Conversation[] = (() => {
     if (!user) return [];
     const convMap = new Map<string, Conversation>();
@@ -533,6 +624,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markNotifRead, markAllNotifsRead, sendMessage, markMsgRead,
       addPaymentMethod, removePaymentMethod,
       computeEventPoints, requiresMinCard, canAccessEvent: (price) => canAccessEvent(price, user?.nfcCardTier ?? "none"),
+      addComment, updateProfile, applyReferralCode, setEventPromoCode, requestPayout,
     }}>
       {children}
     </AppContext.Provider>

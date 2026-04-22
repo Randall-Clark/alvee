@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,7 +31,7 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { events, user, isAuthenticated, bookEvent, getUserBookingForEvent, linkNFCToBooking, cancelBooking, sendMessage, canAccessEvent } = useApp();
+  const { events, user, isAuthenticated, bookEvent, getUserBookingForEvent, linkNFCToBooking, cancelBooking, sendMessage, canAccessEvent, addComment } = useApp();
 
   const [loading, setLoading] = useState(false);
   const [nfcVisible, setNfcVisible] = useState(false);
@@ -38,6 +39,9 @@ export default function EventDetailScreen() {
   const [surveyVisible, setSurveyVisible] = useState(false);
   const [msgModal, setMsgModal] = useState(false);
   const [msgText, setMsgText] = useState("");
+  const [commentText, setCommentText] = useState("");
+  const [commentRating, setCommentRating] = useState(5);
+  const [showCommentForm, setShowCommentForm] = useState(false);
 
   const event = events.find(e => e.id === id);
   const booking = event ? getUserBookingForEvent(event.id) : undefined;
@@ -210,6 +214,97 @@ export default function EventDetailScreen() {
                   : "Présentez votre QR code à l'entrée ou passez votre carte Alvee si vous l'avez enregistrée sur votre billet."}
               </Text>
             </View>
+          </View>
+
+          {/* COMMENTS SECTION */}
+          <View>
+            <View style={styles.commentsTitleRow}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                Commentaires {event.comments && event.comments.length > 0 ? `(${event.comments.length})` : ""}
+              </Text>
+              {isAuthenticated && !showCommentForm && (
+                <Pressable
+                  style={[styles.addCommentBtn, { backgroundColor: colors.gold + "20", borderColor: colors.gold + "40" }]}
+                  onPress={() => setShowCommentForm(true)}
+                >
+                  <Feather name="edit-2" size={12} color={colors.gold} />
+                  <Text style={[styles.addCommentText, { color: colors.gold }]}>Commenter</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {showCommentForm && (
+              <View style={[styles.commentForm, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.ratingLabel, { color: colors.mutedForeground }]}>Note</Text>
+                <View style={styles.starsRow}>
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <Pressable key={s} onPress={() => setCommentRating(s)}>
+                      <Feather name="star" size={24} color={s <= commentRating ? colors.gold : colors.border} />
+                    </Pressable>
+                  ))}
+                </View>
+                <TextInput
+                  style={[styles.commentInput, { backgroundColor: colors.muted, color: colors.foreground }]}
+                  placeholder="Partagez votre expérience…"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+                <View style={styles.commentFormBtns}>
+                  <Pressable
+                    style={[styles.commentCancelBtn, { borderColor: colors.border }]}
+                    onPress={() => { setShowCommentForm(false); setCommentText(""); setCommentRating(5); }}
+                  >
+                    <Text style={[styles.commentCancelText, { color: colors.mutedForeground }]}>Annuler</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.commentSubmitBtn, { backgroundColor: colors.gold }]}
+                    onPress={() => {
+                      if (!commentText.trim()) return;
+                      addComment(event.id, commentText.trim(), commentRating);
+                      setShowCommentForm(false);
+                      setCommentText("");
+                      setCommentRating(5);
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    }}
+                  >
+                    <Text style={styles.commentSubmitText}>Publier</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
+            {(!event.comments || event.comments.length === 0) && !showCommentForm && (
+              <View style={[styles.noComments, { backgroundColor: colors.card }]}>
+                <Feather name="message-square" size={22} color={colors.mutedForeground} />
+                <Text style={[styles.noCommentsText, { color: colors.mutedForeground }]}>Aucun commentaire pour l'instant</Text>
+              </View>
+            )}
+
+            {event.comments?.map(c => (
+              <View key={c.id} style={[styles.commentCard, { backgroundColor: colors.card }]}>
+                <View style={styles.commentHeader}>
+                  <View style={[styles.commentAvatar, { backgroundColor: colors.gold + "30" }]}>
+                    <Text style={[styles.commentAvatarText, { color: colors.gold }]}>{c.userName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.commentName, { color: colors.foreground }]}>{c.userName}</Text>
+                    <Text style={[styles.commentDate, { color: colors.mutedForeground }]}>
+                      {new Date(c.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                    </Text>
+                  </View>
+                  <View style={styles.commentStars}>
+                    {[1, 2, 3, 4, 5].map(s => (
+                      <Feather key={s} name="star" size={11} color={s <= c.rating ? colors.gold : colors.border} />
+                    ))}
+                  </View>
+                </View>
+                <Text style={[styles.commentText, { color: colors.foreground }]}>{c.text}</Text>
+              </View>
+            ))}
           </View>
 
           {booking && (
@@ -385,4 +480,26 @@ const styles = StyleSheet.create({
   msgInput: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
   msgSendBtn: { width: "100%", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   msgSendText: { color: "#0D0D0D", fontSize: 15, fontFamily: "Inter_700Bold" },
+  commentsTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  addCommentBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  addCommentText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  commentForm: { borderRadius: 14, borderWidth: 1, padding: 14, marginTop: 10, gap: 10 },
+  ratingLabel: { fontSize: 12, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5 },
+  starsRow: { flexDirection: "row", gap: 6 },
+  commentInput: { borderRadius: 10, padding: 10, fontSize: 14, fontFamily: "Inter_400Regular", minHeight: 70 },
+  commentFormBtns: { flexDirection: "row", gap: 10 },
+  commentCancelBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 11, alignItems: "center" },
+  commentCancelText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  commentSubmitBtn: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: "center" },
+  commentSubmitText: { color: "#0D0D0D", fontSize: 13, fontFamily: "Inter_700Bold" },
+  noComments: { borderRadius: 14, padding: 20, alignItems: "center", gap: 8, marginTop: 8 },
+  noCommentsText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  commentCard: { borderRadius: 14, padding: 14, marginTop: 8, gap: 8 },
+  commentHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  commentAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  commentAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  commentName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  commentDate: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
+  commentStars: { flexDirection: "row", gap: 2 },
+  commentText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
 });

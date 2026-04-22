@@ -18,10 +18,11 @@ All user-facing text is in **French**.
 
 ## Artifacts
 
-| Artifact | Kind | Dir |
-|---|---|---|
-| Alvee | mobile (Expo) | `artifacts/alvee/` |
-| API Server | api (Express) | `artifacts/api-server/` |
+| Artifact | Kind | Dir | Preview Path |
+|---|---|---|---|
+| Alvee | mobile (Expo) | `artifacts/alvee/` | Expo Go / Web |
+| API Server | api (Express) | `artifacts/api-server/` | `/api` |
+| Alvee Admin | web (React+Vite) | `artifacts/admin/` | `/admin/` |
 
 ## Key Commands
 

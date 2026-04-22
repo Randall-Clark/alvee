@@ -41,6 +41,9 @@ export default function CreateEventScreen() {
   const [nfcOnlyEntry, setNfcOnlyEntry] = useState(false);
   const [loading, setLoading] = useState(false);
   const [coverImageUri, setCoverImageUri] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoDiscount, setPromoDiscount] = useState("");
+  const [promoMaxUses, setPromoMaxUses] = useState("");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -67,6 +70,13 @@ export default function CreateEventScreen() {
   const maxP = parseInt(maxParticipants) || 0;
   const totalPoints = priceNum < 100 ? 20 : priceNum <= 500 ? 45 : 100;
 
+  const PLATFORM_FEE_PCT = 0.02;
+  const STRIPE_PCT = 0.029;
+  const STRIPE_FIXED = 0.30;
+  const platformFee = priceNum * PLATFORM_FEE_PCT;
+  const stripeFee = priceNum > 0 ? priceNum * STRIPE_PCT + STRIPE_FIXED : 0;
+  const netAmount = priceNum > 0 ? priceNum - platformFee - stripeFee : 0;
+
   const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
   const formatTime = (d: Date) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -85,10 +95,14 @@ export default function CreateEventScreen() {
     }
     setLoading(true);
     try {
+      const promoPayload = promoCode.trim().length >= 3 && parseFloat(promoDiscount) > 0
+        ? { code: promoCode.trim(), discountPercent: parseFloat(promoDiscount), maxUses: parseInt(promoMaxUses) || 999, usedCount: 0 }
+        : undefined;
       await createEvent({
         title: title.trim(), description: description.trim(), category, date: dateStr, time: timeStr,
         location: location.trim(), address: address.trim(), price: priceNum, maxParticipants: maxP,
         organizerId: user!.id, organizerName: user!.name, nfcOnlyEntry, coverImageUri: coverImageUri ?? undefined,
+        promoCode: promoPayload,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Événement créé !", "Votre événement est maintenant visible.", [{ text: "OK", onPress: () => router.push("/") }]);
@@ -207,11 +221,87 @@ export default function CreateEventScreen() {
             </Field>
           </View>
           {priceNum > 0 && (
+            <View style={[styles.payoutBox, { backgroundColor: colors.card }]}>
+              <Text style={[styles.payoutTitle, { color: colors.foreground }]}>Revenus estimés par billet</Text>
+              <View style={styles.payoutRow}>
+                <Text style={[styles.payoutLabel, { color: colors.mutedForeground }]}>Prix du billet</Text>
+                <Text style={[styles.payoutVal, { color: colors.foreground }]}>{priceNum.toFixed(2)} $ CAD</Text>
+              </View>
+              <View style={styles.payoutRow}>
+                <Text style={[styles.payoutLabel, { color: colors.mutedForeground }]}>Frais plateforme (2%)</Text>
+                <Text style={[styles.payoutValNeg, { color: colors.destructive ?? "#FF4444" }]}>− {platformFee.toFixed(2)} $</Text>
+              </View>
+              <View style={styles.payoutRow}>
+                <Text style={[styles.payoutLabel, { color: colors.mutedForeground }]}>Frais Stripe (2.9% + 0.30 $)</Text>
+                <Text style={[styles.payoutValNeg, { color: colors.destructive ?? "#FF4444" }]}>− {stripeFee.toFixed(2)} $</Text>
+              </View>
+              <View style={[styles.payoutDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.payoutRow}>
+                <Text style={[styles.payoutNetLabel, { color: colors.gold }]}>Vous percevez</Text>
+                <Text style={[styles.payoutNet, { color: colors.gold }]}>{netAmount.toFixed(2)} $ CAD</Text>
+              </View>
+              {maxP > 0 && (
+                <View style={[styles.payoutTotal, { backgroundColor: colors.gold + "15" }]}>
+                  <Feather name="trending-up" size={13} color={colors.gold} />
+                  <Text style={[styles.payoutTotalText, { color: colors.gold }]}>
+                    Revenu total max : {(netAmount * maxP).toFixed(2)} $ CAD ({maxP} places)
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+          {priceNum > 0 && (
             <View style={[styles.pointsPreview, { backgroundColor: colors.gold + "15" }]}>
               <Feather name="zap" size={13} color={colors.gold} />
               <Text style={[styles.ptsText, { color: colors.gold }]}>
                 {totalPoints} points distribués aux participants
                 {priceNum >= 300 ? " · Carte Prime requise" : ""}
+              </Text>
+            </View>
+          )}
+        </Section>
+
+        <Section title="Code promo (facultatif)" colors={colors}>
+          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginBottom: 4 }}>
+            Définissez un code promotionnel pour offrir une réduction sur votre événement.
+          </Text>
+          <View style={styles.row}>
+            <Field label="Code" colors={colors} style={{ flex: 1 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]}
+                placeholder="ALVEE20"
+                placeholderTextColor={colors.mutedForeground}
+                value={promoCode}
+                onChangeText={t => setPromoCode(t.toUpperCase())}
+                autoCapitalize="characters"
+              />
+            </Field>
+            <Field label="Remise (%)" colors={colors} style={{ flex: 1 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]}
+                placeholder="10"
+                placeholderTextColor={colors.mutedForeground}
+                value={promoDiscount}
+                onChangeText={setPromoDiscount}
+                keyboardType="numeric"
+              />
+            </Field>
+            <Field label="Max util." colors={colors} style={{ flex: 1 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]}
+                placeholder="50"
+                placeholderTextColor={colors.mutedForeground}
+                value={promoMaxUses}
+                onChangeText={setPromoMaxUses}
+                keyboardType="numeric"
+              />
+            </Field>
+          </View>
+          {promoCode.trim().length >= 3 && parseFloat(promoDiscount) > 0 && (
+            <View style={[styles.pointsPreview, { backgroundColor: colors.success ? colors.success + "15" : "#00AA4415" }]}>
+              <Feather name="tag" size={13} color={colors.success ?? "#00AA44"} />
+              <Text style={[styles.ptsText, { color: colors.success ?? "#00AA44" }]}>
+                Code "{promoCode}" — {promoDiscount}% de réduction · {promoMaxUses || "∞"} utilisations max
               </Text>
             </View>
           )}
@@ -299,4 +389,15 @@ const styles = StyleSheet.create({
   switchSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
   createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 16, borderRadius: 16, marginTop: 8, marginBottom: 8 },
   createBtnText: { color: "#0D0D0D", fontSize: 16, fontFamily: "Inter_700Bold" },
+  payoutBox: { borderRadius: 14, padding: 14, gap: 8 },
+  payoutTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
+  payoutRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  payoutLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  payoutVal: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  payoutValNeg: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  payoutDivider: { height: 1 },
+  payoutNetLabel: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  payoutNet: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  payoutTotal: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, padding: 8, marginTop: 4 },
+  payoutTotalText: { fontSize: 12, fontFamily: "Inter_600SemiBold", flex: 1 },
 });

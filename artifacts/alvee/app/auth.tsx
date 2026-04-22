@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,7 +19,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { detectCountryFromPhone } from "@/utils/phoneDetect";
+import { DEFAULT_DIAL, PhoneInput } from "@/components/PhoneInput";
+import type { DialCode } from "@/utils/dialCodes";
 
 type Mode = "choice" | "login" | "register-credentials" | "register-profile";
 
@@ -32,12 +33,13 @@ export default function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
-  const [phone, setPhone] = useState("");
+  const [dialCode, setDialCode] = useState<DialCode>(DEFAULT_DIAL);
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [socialProfile, setSocialProfile] = useState<{ name: string; email: string; provider: "google" | "apple" | "facebook" } | null>(null);
 
-  const detectedCountry = useMemo(() => detectCountryFromPhone(phone), [phone]);
+  const fullPhone = phoneNumber.trim() ? `${dialCode.dial}${phoneNumber.trim().replace(/^0/, "")}` : "";
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -72,12 +74,8 @@ export default function AuthScreen() {
       Alert.alert("Nom d'utilisateur requis", "Choisissez un nom d'utilisateur");
       return;
     }
-    if (!phone.trim() || !phone.startsWith("+")) {
-      Alert.alert("Numéro invalide", "Saisissez votre numéro au format international, ex : +33 6 12 34 56 78");
-      return;
-    }
-    if (!detectedCountry) {
-      Alert.alert("Pays non reconnu", "Vérifiez l'indicatif de votre numéro de téléphone");
+    if (!phoneNumber.trim()) {
+      Alert.alert("Numéro requis", "Saisissez votre numéro de téléphone");
       return;
     }
     setLoading(true);
@@ -86,11 +84,11 @@ export default function AuthScreen() {
       ok = await socialLogin(socialProfile.provider, {
         name: username.trim(),
         email: socialProfile.email,
-        country: detectedCountry.code,
-        phone: phone.trim(),
+        country: dialCode.code,
+        phone: fullPhone,
       });
     } else {
-      ok = await register(username.trim(), email.trim(), password, detectedCountry.code, phone.trim());
+      ok = await register(username.trim(), email.trim(), password, dialCode.code, fullPhone);
     }
     setLoading(false);
     if (ok) {
@@ -331,37 +329,15 @@ export default function AuthScreen() {
           />
         </Field>
 
-        <Field label="Téléphone (format international)" colors={colors}>
-          <TextInput
-            style={[styles.input, { color: colors.foreground }]}
-            placeholder="+33 6 12 34 56 78"
-            placeholderTextColor={colors.mutedForeground}
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            autoComplete="tel"
+        <View style={{ gap: 6 }}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Téléphone</Text>
+          <PhoneInput
+            dialCode={dialCode}
+            number={phoneNumber}
+            onDialChange={setDialCode}
+            onNumberChange={setPhoneNumber}
           />
-        </Field>
-
-        {detectedCountry ? (
-          <View style={[styles.detectedBox, { backgroundColor: colors.gold + "15", borderColor: colors.gold }]}>
-            <Text style={styles.detectedFlag}>{detectedCountry.flag}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.detectedLabel, { color: colors.mutedForeground }]}>Pays détecté</Text>
-              <Text style={[styles.detectedName, { color: colors.foreground }]}>
-                {detectedCountry.name}
-              </Text>
-            </View>
-            <Feather name="check-circle" size={20} color={colors.gold} />
-          </View>
-        ) : phone.length > 0 ? (
-          <View style={[styles.detectedBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            <Feather name="info" size={18} color={colors.mutedForeground} />
-            <Text style={[styles.detectedHint, { color: colors.mutedForeground }]}>
-              Commencez par l'indicatif international (ex : +33 pour la France)
-            </Text>
-          </View>
-        ) : null}
+        </View>
 
         <Pressable
           style={[styles.primaryBtn, { backgroundColor: colors.gold, opacity: loading ? 0.6 : 1, marginTop: 8 }]}

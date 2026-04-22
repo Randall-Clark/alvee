@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import React from "react";
 import {
@@ -67,6 +68,10 @@ export default function ProfileScreen() {
       <View style={[styles.header, { paddingTop: topPad + 16 }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Profil</Text>
         <View style={styles.headerRight}>
+          <Pressable onPress={() => router.push("/edit-profile")} style={[styles.editBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="edit-2" size={13} color={colors.gold} />
+            <Text style={[styles.editBtnText, { color: colors.gold }]}>Modifier</Text>
+          </Pressable>
           <Pressable
             style={{ position: "relative" }}
             onPress={() => router.push("/notifications")}
@@ -86,9 +91,15 @@ export default function ProfileScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: Platform.OS === "web" ? 100 : 80 + insets.bottom }]}>
         <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
-          <View style={[styles.avatar, { backgroundColor: colors.gold }]}>
-            <Text style={styles.avatarText}>{user!.name.charAt(0).toUpperCase()}</Text>
-          </View>
+          <Pressable onPress={() => router.push("/edit-profile")}>
+            {user!.avatar ? (
+              <Image source={{ uri: user!.avatar }} style={[styles.avatar, { borderRadius: 26 }]} contentFit="cover" />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: colors.gold }]}>
+                <Text style={styles.avatarText}>{user!.name.charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+          </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={[styles.userName, { color: colors.foreground }]}>{user!.name}</Text>
             <Text style={[styles.userEmail, { color: colors.mutedForeground }]}>{user!.email}</Text>
@@ -148,6 +159,33 @@ export default function ProfileScreen() {
             ))}
           </View>
         </View>
+
+        {user!.referralCode && (
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Mon parrainage</Text>
+            <View style={styles.referralWrap}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.referralCode, { color: colors.gold }]}>{user!.referralCode}</Text>
+                <Text style={[styles.referralSub, { color: colors.mutedForeground }]}>
+                  {user!.referralCount ?? 0}/10 parrainages · {(user!.referralCount ?? 0) * 100} pts gagnés
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.editProfileLink, { backgroundColor: colors.gold + "15", borderColor: colors.gold + "40" }]}
+                onPress={() => router.push("/edit-profile")}
+              >
+                <Feather name="users" size={13} color={colors.gold} />
+                <Text style={[styles.editProfileLinkText, { color: colors.gold }]}>Parrainer</Text>
+              </Pressable>
+            </View>
+            <View style={[styles.referralBar, { backgroundColor: colors.muted }]}>
+              <View style={[styles.referralBarFill, { backgroundColor: colors.gold, width: `${Math.min(((user!.referralCount ?? 0) / 10) * 100, 100)}%` as any }]} />
+            </View>
+            <Text style={[styles.referralBarLabel, { color: colors.mutedForeground }]}>
+              {10 - (user!.referralCount ?? 0)} parrainage(s) restant(s) avant la limite
+            </Text>
+          </View>
+        )}
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Historique des points</Text>
         {pointTransactions.length === 0 ? (
@@ -251,4 +289,14 @@ const styles = StyleSheet.create({
   txDesc: { fontSize: 13, fontFamily: "Inter_500Medium" },
   txDate: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
   txPts: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  editBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  editBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  referralWrap: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
+  referralCode: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: 2 },
+  referralSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  editProfileLink: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  editProfileLinkText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  referralBar: { height: 5, borderRadius: 3, marginHorizontal: 16, overflow: "hidden" },
+  referralBarFill: { height: "100%", borderRadius: 3 },
+  referralBarLabel: { fontSize: 11, fontFamily: "Inter_400Regular", paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12 },
 });
