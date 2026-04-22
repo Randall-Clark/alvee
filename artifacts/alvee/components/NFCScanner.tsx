@@ -1,15 +1,16 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import NfcManager, { NfcTech, NfcError } from "react-native-nfc-manager";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -20,79 +21,185 @@ interface Props {
   title?: string;
 }
 
+type ScanState = "idle" | "scanning" | "success" | "error" | "unavailable";
+
 export function NFCScanner({ visible, onClose, onNFCDetected, title = "Scanner NFC" }: Props) {
   const colors = useColors();
-  const [manualId, setManualId] = useState("");
-  const [scanning, setScanning] = useState(false);
+  const [state, setState] = useState<ScanState>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const scanning = useRef(false);
+
+  const startPulse = useCallback(() => {
+    pulseLoop.current?.stop();
+    pulseLoop.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    pulseLoop.current.start();
+  }, [pulseAnim]);
+
+  const stopPulse = useCallback(() => {
+    pulseLoop.current?.stop();
+    Animated.timing(pulseAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+  }, [pulseAnim]);
+
+  const cancelScan = useCallback(async () => {
+    scanning.current = false;
+    try { await NfcManager.cancelTechnologyRequest(); } catch {}
+    stopPulse();
+  }, [stopPulse]);
+
+  const startScan = useCallback(async () => {
+    if (Platform.OS === "web") {
+      setState("unavailable");
+      return;
+    }
+
+    try {
+      const supported = await NfcManager.isSupported();
+      if (!supported) {
+        setState("unavailable");
+        setErrorMsg("NFC non supporté sur cet appareil.");
+        return;
+      }
+
+      const enabled = await NfcManager.isEnabled();
+      if (!enabled) {
+        setState("unavailable");
+        setErrorMsg("Activez le NFC dans les paramètres de votre téléphone.");
+        return;
+      }
+
+      await NfcManager.start();
+    } catch (e: any) {
+      if (!e.message?.includes("already")) {
+        setState("unavailable");
+        setErrorMsg("Impossible d'initialiser le NFC.");
+        return;
+      }
+    }
+
+    setState("scanning");
+    scanning.current = true;
+    startPulse();
+
+    try {
+      await NfcManager.requestTechnology([NfcTech.Ndef, NfcTech.NfcA, NfcTech.NfcB, NfcTech.NfcF, NfcTech.NfcV, NfcTech.IsoDep] as any);
+      const tag = await NfcManager.getTag();
+
+      if (!tag) throw new Error("Aucune carte détectée.");
+
+      const cardId = tag.id
+        ? (Array.isArray(tag.id) ? tag.id.map((b: number) => b.toString(16).padStart(2, "0")).join(":").toUpperCase() : String(tag.id))
+        : `NFC-${Date.now().toString(36).toUpperCase()}`;
+
+      setState("success");
+      stopPulse();
+      scanning.current = false;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await NfcManager.cancelTechnologyRequest();
+      onNFCDetected(cardId);
+    } catch (ex: any) {
+      scanning.current = false;
+      stopPulse();
+      if (ex instanceof NfcError.UserCancel || ex?.message?.includes("cancel") || ex?.message?.includes("Cancel")) {
+        setState("idle");
+      } else {
+        setState("error");
+        setErrorMsg(ex?.message ?? "Erreur de lecture NFC.");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      try { await NfcManager.cancelTechnologyRequest(); } catch {}
+    }
+  }, [startPulse, stopPulse, onNFCDetected]);
 
   useEffect(() => {
     if (visible) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.18, duration: 900, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
-        ])
-      ).start();
+      setState("idle");
+      setErrorMsg("");
+      startScan();
+    } else {
+      cancelScan();
+      setState("idle");
     }
-    return () => pulseAnim.stopAnimation();
+    return () => {
+      if (visible) cancelScan();
+    };
   }, [visible]);
 
-  const handleSimulate = () => {
-    setScanning(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setTimeout(() => {
-      setScanning(false);
-      onNFCDetected(`NFC-${Date.now().toString(36).toUpperCase()}`);
-    }, 1500);
+  const handleClose = () => {
+    cancelScan();
+    setState("idle");
+    setErrorMsg("");
+    onClose();
   };
 
-  const handleManual = () => {
-    if (manualId.trim()) { onNFCDetected(manualId.trim().toUpperCase()); setManualId(""); }
+  const handleRetry = () => {
+    setState("idle");
+    setErrorMsg("");
+    startScan();
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <View style={[styles.sheet, { backgroundColor: "#1A1A1A" }]}>
           <View style={styles.handle} />
           <Text style={styles.title}>{title}</Text>
 
           <View style={styles.nfcArea}>
-            <Animated.View style={[styles.nfcRing, { transform: [{ scale: pulseAnim }] }]} />
-            <View style={[styles.nfcInner, { backgroundColor: colors.gold + "20" }]}>
-              <Feather name="wifi" size={36} color={colors.gold} />
+            <Animated.View style={[
+              styles.nfcRing,
+              { borderColor: state === "success" ? colors.success + "80" : state === "error" ? "#FF444460" : "rgba(201,168,76,0.4)" },
+              { transform: [{ scale: state === "scanning" ? pulseAnim : 1 }] },
+            ]} />
+            <View style={[
+              styles.nfcInner,
+              { backgroundColor: state === "success" ? (colors.success ?? "#00AA44") + "25" : state === "error" ? "#FF444425" : colors.gold + "20" },
+            ]}>
+              {state === "success" ? (
+                <Feather name="check-circle" size={36} color={colors.success ?? "#00AA44"} />
+              ) : state === "error" || state === "unavailable" ? (
+                <Feather name="wifi-off" size={36} color="#FF4444" />
+              ) : (
+                <Feather name="wifi" size={36} color={colors.gold} />
+              )}
             </View>
           </View>
 
-          <Text style={[styles.hint, { color: colors.mutedForeground }]}>Approchez votre carte NFC Alvee</Text>
+          <Text style={[styles.statusText, {
+            color: state === "success" ? (colors.success ?? "#00AA44")
+              : state === "error" || state === "unavailable" ? "#FF4444"
+              : state === "scanning" ? colors.gold
+              : colors.mutedForeground,
+          }]}>
+            {state === "scanning" ? "En attente d'une carte NFC…"
+              : state === "success" ? "Carte détectée !"
+              : state === "error" ? (errorMsg || "Erreur de lecture.")
+              : state === "unavailable" ? (errorMsg || "NFC non disponible.")
+              : "Approchez votre carte NFC Alvee"}
+          </Text>
 
-          <Pressable style={[styles.simBtn, { backgroundColor: colors.gold }]} onPress={handleSimulate}>
-            <Feather name="zap" size={16} color="#0D0D0D" />
-            <Text style={styles.simBtnText}>{scanning ? "Détection..." : "Simuler détection NFC"}</Text>
-          </Pressable>
+          {state === "scanning" && (
+            <View style={styles.dotsRow}>
+              {[0, 1, 2].map(i => (
+                <Animated.View key={i} style={[styles.dot, { backgroundColor: colors.gold, opacity: 0.6 + i * 0.2 }]} />
+              ))}
+            </View>
+          )}
 
-          <View style={styles.divRow}>
-            <View style={[styles.divLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.divText, { color: colors.mutedForeground }]}>ou saisir manuellement</Text>
-            <View style={[styles.divLine, { backgroundColor: colors.border }]} />
-          </View>
-
-          <View style={[styles.manualRow, { borderColor: colors.border, backgroundColor: colors.muted }]}>
-            <TextInput
-              style={[styles.manualInput, { color: colors.foreground }]}
-              placeholder="ID carte (ex: NFC-ABC123)"
-              placeholderTextColor={colors.mutedForeground}
-              value={manualId}
-              onChangeText={setManualId}
-              autoCapitalize="characters"
-            />
-            <Pressable style={[styles.manualSubmit, { backgroundColor: colors.gold, opacity: manualId.trim() ? 1 : 0.4 }]} onPress={handleManual} disabled={!manualId.trim()}>
-              <Feather name="arrow-right" size={16} color="#0D0D0D" />
+          {(state === "error" || state === "idle") && (
+            <Pressable style={[styles.retryBtn, { backgroundColor: colors.gold }]} onPress={handleRetry}>
+              <Feather name="refresh-cw" size={15} color="#0D0D0D" />
+              <Text style={styles.retryBtnText}>Réessayer</Text>
             </Pressable>
-          </View>
+          )}
 
-          <Pressable style={styles.cancelBtn} onPress={onClose}>
+          <Pressable style={styles.cancelBtn} onPress={handleClose}>
             <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Annuler</Text>
           </Pressable>
         </View>
@@ -103,21 +210,17 @@ export function NFCScanner({ visible, onClose, onNFCDetected, title = "Scanner N
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44, alignItems: "center", gap: 16 },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44, alignItems: "center", gap: 14 },
   handle: { width: 36, height: 4, backgroundColor: "#333", borderRadius: 2 },
   title: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
-  nfcArea: { width: 130, height: 130, alignItems: "center", justifyContent: "center" },
-  nfcRing: { position: "absolute", width: 130, height: 130, borderRadius: 65, borderWidth: 2, borderColor: "rgba(201,168,76,0.35)" },
+  nfcArea: { width: 130, height: 130, alignItems: "center", justifyContent: "center", marginVertical: 8 },
+  nfcRing: { position: "absolute", width: 130, height: 130, borderRadius: 65, borderWidth: 2 },
   nfcInner: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
-  hint: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
-  simBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14, width: "100%", justifyContent: "center" },
-  simBtnText: { color: "#0D0D0D", fontSize: 15, fontFamily: "Inter_700Bold" },
-  divRow: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%" },
-  divLine: { flex: 1, height: 1 },
-  divText: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  manualRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, overflow: "hidden", width: "100%" },
-  manualInput: { flex: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular" },
-  manualSubmit: { padding: 12, margin: 4, borderRadius: 9 },
+  statusText: { fontSize: 14, fontFamily: "Inter_500Medium", textAlign: "center", lineHeight: 20 },
+  dotsRow: { flexDirection: "row", gap: 6, height: 16, alignItems: "center" },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  retryBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 13, borderRadius: 14, width: "100%", justifyContent: "center" },
+  retryBtnText: { color: "#0D0D0D", fontSize: 15, fontFamily: "Inter_700Bold" },
   cancelBtn: { paddingVertical: 8 },
   cancelText: { fontSize: 14, fontFamily: "Inter_500Medium" },
 });

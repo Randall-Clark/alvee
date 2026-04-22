@@ -103,8 +103,8 @@ export default function EditProfileScreen() {
     setSentCode(code);
     setEnteredCode("");
     Alert.alert(
-      "Code de vérification",
-      `Un code a été envoyé à votre ${target === "email" ? "email" : "téléphone"} actuel.\n\n[Mode démo] Votre code : ${code}`,
+      "Code envoyé",
+      `Un code de vérification a été envoyé à votre ${target === "email" ? "adresse e-mail" : "numéro de téléphone"} actuel.`,
       [{ text: "OK" }]
     );
     setStep("verify");

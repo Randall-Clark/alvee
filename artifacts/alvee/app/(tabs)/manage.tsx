@@ -10,12 +10,12 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { NFCScanner } from "@/components/NFCScanner";
+import { QRScanner } from "@/components/QRScanner";
 import type { Event } from "@/context/AppContext";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -25,9 +25,9 @@ export default function ManageScreen() {
   const insets = useSafeAreaInsets();
   const { user, events, isAuthenticated, validateQRCode, validateNFC, cancelEvent, getEventBookings } = useApp();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [qrInput, setQrInput] = useState("");
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
   const [nfcVisible, setNfcVisible] = useState(false);
+  const [qrScannerVisible, setQrScannerVisible] = useState(false);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   if (!isAuthenticated) {
@@ -51,12 +51,12 @@ export default function ManageScreen() {
 
   const myEvents = events.filter(e => e.organizerId === user?.id && e.status !== "cancelled");
 
-  const handleScanQR = async () => {
-    if (!selectedEvent || !qrInput.trim()) return;
-    const result = await validateQRCode(selectedEvent.id, qrInput.trim());
+  const handleCameraQR = async (data: string) => {
+    setQrScannerVisible(false);
+    if (!selectedEvent) return;
+    const result = await validateQRCode(selectedEvent.id, data);
     setScanResult(result);
     Haptics.notificationAsync(result.success ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
-    setQrInput("");
   };
 
   const handleNFCScan = async (cardId: string) => {
@@ -181,23 +181,14 @@ export default function ManageScreen() {
             <View style={[styles.scanCard, { backgroundColor: colors.card, marginHorizontal: 16 }]}>
               <Text style={[styles.scanTitle, { color: colors.foreground }]}>Valider une entrée</Text>
 
-              <View style={[styles.qrRow, { borderColor: colors.border }]}>
-                <Feather name="maximize" size={14} color={colors.mutedForeground} />
-                <TextInput
-                  style={[styles.qrInput, { color: colors.foreground }]}
-                  placeholder="Saisir ou scanner le code QR"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={qrInput}
-                  onChangeText={setQrInput}
-                />
-                <Pressable style={[styles.qrSubmit, { backgroundColor: colors.gold, opacity: qrInput.trim() ? 1 : 0.4 }]} onPress={handleScanQR} disabled={!qrInput.trim()}>
-                  <Feather name="check" size={15} color="#0D0D0D" />
-                </Pressable>
-              </View>
+              <Pressable style={[styles.cameraBtn, { backgroundColor: colors.gold }]} onPress={() => setQrScannerVisible(true)}>
+                <Feather name="camera" size={16} color="#0D0D0D" />
+                <Text style={styles.cameraBtnText}>Scanner un code QR</Text>
+              </Pressable>
 
               <Pressable style={[styles.nfcBtn, { backgroundColor: colors.gold + "15", borderColor: colors.gold + "30" }]} onPress={() => setNfcVisible(true)}>
                 <Feather name="wifi" size={15} color={colors.gold} />
-                <Text style={[styles.nfcBtnText, { color: colors.gold }]}>Scanner une carte NFC</Text>
+                <Text style={[styles.nfcBtnText, { color: colors.gold }]}>Lire une carte NFC</Text>
               </Pressable>
 
               {scanResult && (
@@ -232,7 +223,8 @@ export default function ManageScreen() {
         )}
       </Modal>
 
-      <NFCScanner visible={nfcVisible} onClose={() => setNfcVisible(false)} onNFCDetected={handleNFCScan} title="Scanner carte NFC" />
+      <NFCScanner visible={nfcVisible} onClose={() => setNfcVisible(false)} onNFCDetected={handleNFCScan} title="Lire carte NFC" />
+      <QRScanner visible={qrScannerVisible} onClose={() => setQrScannerVisible(false)} onScanned={handleCameraQR} title="Scanner code QR" />
     </View>
   );
 }
@@ -272,9 +264,8 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
   scanCard: { borderRadius: 16, padding: 16, gap: 10 },
   scanTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  qrRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, overflow: "hidden" },
-  qrInput: { flex: 1, paddingVertical: 11, fontSize: 13, fontFamily: "Inter_400Regular" },
-  qrSubmit: { padding: 9, margin: 4, borderRadius: 9 },
+  cameraBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 14 },
+  cameraBtnText: { color: "#0D0D0D", fontSize: 14, fontFamily: "Inter_700Bold" },
   nfcBtn: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, justifyContent: "center" },
   nfcBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   scanResult: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },

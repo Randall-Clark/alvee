@@ -8,7 +8,9 @@ All user-facing text is in **French**.
 ## Stack
 
 - **Monorepo**: pnpm workspaces
-- **Mobile**: React Native (Expo SDK 53), Expo Router, TypeScript
+- **Mobile**: React Native (Expo SDK 54), Expo Router, TypeScript
+- **Camera**: expo-camera ~17.0.10 (QR code scanning)
+- **NFC**: react-native-nfc-manager ^3.17.2 (real NFC card reading)
 - **Backend**: Node.js 24 + Express 5 + TypeScript
 - **Database**: PostgreSQL + Drizzle ORM
 - **Auth**: JWT (jsonwebtoken) + bcrypt

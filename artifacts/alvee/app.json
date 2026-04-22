@@ -14,9 +14,22 @@
       "backgroundColor": "#0D0D0D"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "app.alvee.mobile",
+      "infoPlist": {
+        "NFCReaderUsageDescription": "Alvee utilise le NFC pour lire votre carte d'abonnement Alvee et valider votre billet.",
+        "NSCameraUsageDescription": "Alvee utilise la caméra pour scanner les codes QR des billets à l'entrée des événements."
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": ["TAG"]
+      }
     },
-    "android": {},
+    "android": {
+      "permissions": [
+        "android.permission.NFC",
+        "android.permission.CAMERA"
+      ]
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -29,7 +42,21 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Alvee utilise la caméra pour scanner les codes QR des billets à l'entrée des événements."
+        }
+      ],
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "Alvee utilise le NFC pour lire votre carte d'abonnement Alvee et valider votre billet.",
+          "selectIdentifiers": [],
+          "includeNdefMessaging": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
