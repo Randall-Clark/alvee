@@ -1,7 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Haptics from "expo-haptics";
+import * as Linking from "expo-linking";
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -21,6 +23,9 @@ import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { DEFAULT_DIAL, PhoneInput } from "@/components/PhoneInput";
 import type { DialCode } from "@/utils/dialCodes";
+import { supabase } from "@/services/supabase";
+
+WebBrowser.maybeCompleteAuthSession();
 
 type Mode = "choice" | "login" | "register-credentials" | "register-profile";
 
@@ -99,41 +104,122 @@ export default function AuthScreen() {
     }
   };
 
-  const handleSocial = async (provider: "google" | "apple" | "facebook") => {
-    if (provider === "apple" && Platform.OS === "ios") {
-      try {
-        const credential = await AppleAuthentication.signInAsync({
-          requestedScopes: [
-            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-            AppleAuthentication.AppleAuthenticationScope.EMAIL,
-          ],
-        });
-        const name = credential.fullName?.givenName || "Utilisateur Apple";
-        setSocialProfile({ name, email: credential.email || `${credential.user}@privaterelay.appleid.com`, provider });
+  const handleOAuth = async (provider: "google" | "facebook") => {
+    setLoading(true);
+    try {
+      const redirectUrl = Linking.createURL("auth-callback");
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error || !data?.url) {
+        Alert.alert(
+          "Configuration requise",
+          `Le fournisseur ${provider} n'est pas encore activé dans Supabase. Activez-le dans Authentication → Providers.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+
+      if (result.type === "success" && result.url) {
+        const parsed = new URL(result.url);
+        const code = parsed.searchParams.get("code");
+        const accessToken = parsed.searchParams.get("access_token");
+        const refreshToken = parsed.searchParams.get("refresh_token");
+
+        let user = null;
+
+        if (code) {
+          const { data: sessionData } = await supabase.auth.exchangeCodeForSession(code);
+          user = sessionData?.user ?? null;
+        } else if (accessToken && refreshToken) {
+          const { data: sessionData } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          user = sessionData?.user ?? null;
+        }
+
+        if (user) {
+          const name =
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            user.user_metadata?.user_name ||
+            user.email?.split("@")[0] ||
+            "Utilisateur";
+          const userEmail = user.email || `${user.id}@oauth.alvee.app`;
+
+          const ok = await socialLogin(provider, { name, email: userEmail });
+          if (ok) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            router.replace("/(tabs)");
+            setLoading(false);
+            return;
+          }
+
+          setSocialProfile({ name, email: userEmail, provider });
+          setUsername(name);
+          setMode("register-profile");
+        }
+      }
+    } catch (e: any) {
+      Alert.alert("Erreur", e.message || "Connexion échouée");
+    }
+    setLoading(false);
+  };
+
+  const handleApple = async () => {
+    if (Platform.OS !== "ios") return;
+    setLoading(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: "apple",
+        token: credential.identityToken!,
+      });
+
+      if (!error && data?.user) {
+        const name =
+          credential.fullName?.givenName ||
+          data.user.user_metadata?.full_name ||
+          "Utilisateur Apple";
+        const userEmail = credential.email || data.user.email || `${credential.user}@privaterelay.appleid.com`;
+
+        const ok = await socialLogin("apple", { name, email: userEmail });
+        if (ok) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          router.replace("/(tabs)");
+          setLoading(false);
+          return;
+        }
+
+        setSocialProfile({ name, email: userEmail, provider: "apple" });
         setUsername(name);
         setMode("register-profile");
-      } catch (e: any) {
-        if (e.code !== "ERR_REQUEST_CANCELED") Alert.alert("Erreur Apple", e.message);
+      } else {
+        const name = credential.fullName?.givenName || "Utilisateur Apple";
+        const userEmail = credential.email || `${credential.user}@privaterelay.appleid.com`;
+        setSocialProfile({ name, email: userEmail, provider: "apple" });
+        setUsername(name);
+        setMode("register-profile");
       }
-      return;
+    } catch (e: any) {
+      if (e.code !== "ERR_REQUEST_CANCELED") Alert.alert("Erreur Apple", e.message);
     }
-    Alert.alert(
-      `${provider.charAt(0).toUpperCase() + provider.slice(1)}`,
-      `La connexion ${provider} nécessite une configuration côté serveur (clé OAuth). Pour la démo, un profil test sera créé.`,
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Continuer en démo",
-          onPress: () => {
-            const demoEmail = `demo_${provider}_${Date.now()}@alvee.app`;
-            const demoName = `Utilisateur ${provider.charAt(0).toUpperCase() + provider.slice(1)}`;
-            setSocialProfile({ name: demoName, email: demoEmail, provider });
-            setUsername(demoName);
-            setMode("register-profile");
-          },
-        },
-      ],
-    );
+    setLoading(false);
   };
 
   // ============ RENDER ============
@@ -165,18 +251,42 @@ export default function AuthScreen() {
       </View>
 
       <View style={styles.socialRow}>
-        <Pressable style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => handleSocial("google")}>
-          <Text style={[styles.socialIcon, { color: "#4285F4" }]}>G</Text>
-          <Text style={[styles.socialLabel, { color: colors.foreground }]}>Google</Text>
+        <Pressable
+          style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border, opacity: loading ? 0.6 : 1 }]}
+          onPress={() => !loading && handleOAuth("google")}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.gold} />
+          ) : (
+            <>
+              <Text style={[styles.socialIcon, { color: "#4285F4" }]}>G</Text>
+              <Text style={[styles.socialLabel, { color: colors.foreground }]}>Google</Text>
+            </>
+          )}
         </Pressable>
-        <Pressable style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => handleSocial("facebook")}>
-          <Text style={[styles.socialIcon, { color: "#1877F2" }]}>f</Text>
-          <Text style={[styles.socialLabel, { color: colors.foreground }]}>Facebook</Text>
+        <Pressable
+          style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border, opacity: loading ? 0.6 : 1 }]}
+          onPress={() => !loading && handleOAuth("facebook")}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.gold} />
+          ) : (
+            <>
+              <Text style={[styles.socialIcon, { color: "#1877F2" }]}>f</Text>
+              <Text style={[styles.socialLabel, { color: colors.foreground }]}>Facebook</Text>
+            </>
+          )}
         </Pressable>
       </View>
 
       {Platform.OS === "ios" && (
-        <Pressable style={[styles.appleBtn, { backgroundColor: colors.foreground }]} onPress={() => handleSocial("apple")}>
+        <Pressable
+          style={[styles.appleBtn, { backgroundColor: colors.foreground, opacity: loading ? 0.6 : 1 }]}
+          onPress={() => !loading && handleApple()}
+          disabled={loading}
+        >
           <Feather name="smartphone" size={16} color={colors.background} />
           <Text style={[styles.appleText, { color: colors.background }]}>Continuer avec Apple</Text>
         </Pressable>
@@ -440,10 +550,5 @@ const styles = StyleSheet.create({
   featureRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   featureDot: { width: 5, height: 5, borderRadius: 3 },
   featureText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  detectedBox: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, borderWidth: 1, padding: 14 },
-  detectedFlag: { fontSize: 28 },
-  detectedLabel: { fontSize: 11, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5 },
-  detectedName: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginTop: 2 },
-  detectedHint: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   legalText: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 16, marginTop: 12 },
 });

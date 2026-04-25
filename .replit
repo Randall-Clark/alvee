@@ -43,3 +43,6 @@ channel = "stable-25_05"
 
 [userenv.shared]
 JWT_SECRET = "8bf2e0291b27ff1df9e9ba5e6892360563f6c338ef50c4035934c3d6d77a57c7093e005a0fe553792473f110b216ebe55cd0eacc1598df3d28474190a42bfce6"
+EXPO_PUBLIC_SUPABASE_URL = "https://jgingtrskcmqwhlzqfwv.supabase.co"
+EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpnaW5ndHJza2NtcXdobHpxZnd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMjM5MTUsImV4cCI6MjA5MjY5OTkxNX0.tTyVYT2VMCp8eM7FmcnsS5UolRhYZg_QjTIZojus8-8"
+SUPABASE_URL = "https://jgingtrskcmqwhlzqfwv.supabase.co"

@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@react-native-community/datetimepicker": "^9.1.0",
+    "@supabase/supabase-js": "^2.104.1",
     "expo-apple-authentication": "^8.0.8",
     "expo-auth-session": "^7.0.10",
     "expo-camera": "^17.0.10",
