@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { eq, desc, ilike, and, gte, or } from "drizzle-orm";
+import { eq, desc, ilike, and, gte, or, inArray, sql } from "drizzle-orm";
 import { db, events, bookings, users } from "../db/index.js";
 import { requireAuth, optionalAuth } from "../middlewares/auth.js";
 import { validate } from "../middlewares/validate.js";
@@ -22,6 +22,8 @@ const createEventSchema = z.object({
   imageUrl: z.string().url().optional(),
   nfcOnlyEntry: z.boolean().default(false),
   requiresPrime: z.boolean().default(false),
+  category: z.string().optional(),
+  address: z.string().optional(),
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
@@ -61,6 +63,8 @@ router.get("/", optionalAuth, async (req, res) => {
       price: events.price,
       capacity: events.capacity,
       imageUrl: events.imageUrl,
+      category: events.category,
+      address: events.address,
       nfcOnlyEntry: events.nfcOnlyEntry,
       requiresPrime: events.requiresPrime,
       createdAt: events.createdAt,
@@ -72,7 +76,26 @@ router.get("/", optionalAuth, async (req, res) => {
     .where(and(...conditions))
     .orderBy(desc(events.date));
 
-  res.json({ events: rows });
+  if (rows.length === 0) {
+    res.json({ events: [] });
+    return;
+  }
+
+  // Compute currentParticipants via booking count per event
+  const ids = rows.map(r => r.id);
+  const counts = await db
+    .select({
+      eventId: bookings.eventId,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(bookings)
+    .where(and(inArray(bookings.eventId, ids), eq(bookings.status, "confirmed")))
+    .groupBy(bookings.eventId);
+
+  const countMap = Object.fromEntries(counts.map(c => [c.eventId, c.count]));
+  const result = rows.map(r => ({ ...r, currentParticipants: countMap[r.id] ?? 0 }));
+
+  res.json({ events: result });
 });
 
 /**
@@ -95,6 +118,8 @@ router.get("/:id", optionalAuth, async (req, res) => {
       price: events.price,
       capacity: events.capacity,
       imageUrl: events.imageUrl,
+      category: events.category,
+      address: events.address,
       nfcOnlyEntry: events.nfcOnlyEntry,
       requiresPrime: events.requiresPrime,
       organizerId: events.organizerId,

@@ -38,7 +38,7 @@ export function EventCard({ event, compact, horizontal }: Props) {
         style={({ pressed }) => [styles.hCard, pressed && { opacity: 0.9 }]}
         onPress={handlePress}
       >
-        <Image source={getEventImage(event.coverImage)} style={styles.hImage} contentFit="cover" />
+        <Image source={event.imageUrl ? { uri: event.imageUrl } : event.coverImageUri ? { uri: event.coverImageUri } : getEventImage(event.coverImage)} style={styles.hImage} contentFit="cover" />
         <LinearGradient
           colors={["transparent", "rgba(0,0,0,0.85)"]}
           style={styles.hGradient}
@@ -76,7 +76,7 @@ export function EventCard({ event, compact, horizontal }: Props) {
       onPress={handlePress}
     >
       <View style={styles.imageWrap}>
-        <Image source={getEventImage(event.coverImage)} style={styles.image} contentFit="cover" />
+        <Image source={event.imageUrl ? { uri: event.imageUrl } : event.coverImageUri ? { uri: event.coverImageUri } : getEventImage(event.coverImage)} style={styles.image} contentFit="cover" />
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.6)"]} style={styles.imageGradient} />
         <View style={styles.imageBadges}>
           <View style={[styles.catPill, { backgroundColor: "rgba(201,168,76,0.3)", borderColor: "rgba(201,168,76,0.5)" }]}>

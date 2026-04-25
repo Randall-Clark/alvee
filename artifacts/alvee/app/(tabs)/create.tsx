@@ -6,6 +6,7 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   Pressable,
@@ -44,6 +45,9 @@ export default function CreateEventScreen() {
   const [promoCode, setPromoCode] = useState("");
   const [promoDiscount, setPromoDiscount] = useState("");
   const [promoMaxUses, setPromoMaxUses] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [geocoding, setGeocoding] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -82,6 +86,28 @@ export default function CreateEventScreen() {
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   const timeStr = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 
+  const geocodeAddress = async () => {
+    const q = [address.trim(), location.trim()].filter(Boolean).join(", ");
+    if (!q) { Alert.alert("Adresse requise", "Entrez une adresse ou un lieu avant de géolocaliser."); return; }
+    setGeocoding(true);
+    setLatitude(null); setLongitude(null);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`;
+      const res = await fetch(url, { headers: { "User-Agent": "AlveeApp/1.0 contact@alvee.app" } });
+      const data = await res.json();
+      if (data.length > 0) {
+        setLatitude(parseFloat(data[0].lat));
+        setLongitude(parseFloat(data[0].lon));
+      } else {
+        Alert.alert("Introuvable", "Adresse non trouvée. Essayez d'être plus précis.");
+      }
+    } catch {
+      Alert.alert("Erreur réseau", "Impossible de géolocaliser l'adresse.");
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") { Alert.alert("Permission requise", "Autorisez l'accès à votre galerie pour ajouter une image."); return; }
@@ -102,6 +128,7 @@ export default function CreateEventScreen() {
         title: title.trim(), description: description.trim(), category, date: dateStr, time: timeStr,
         location: location.trim(), address: address.trim(), price: priceNum, maxParticipants: maxP,
         organizerId: user!.id, organizerName: user!.name, nfcOnlyEntry, coverImageUri: coverImageUri ?? undefined,
+        latitude: latitude ?? undefined, longitude: longitude ?? undefined,
         promoCode: promoPayload,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -209,6 +236,21 @@ export default function CreateEventScreen() {
               />
             </View>
           </Field>
+
+          <Pressable
+            onPress={geocodeAddress}
+            style={[styles.geoBtn, {
+              backgroundColor: latitude ? colors.gold + "20" : colors.muted,
+              borderColor: latitude ? colors.gold : colors.border,
+            }]}
+          >
+            {geocoding
+              ? <ActivityIndicator size="small" color={colors.gold} />
+              : <Feather name="map-pin" size={14} color={latitude ? colors.gold : colors.mutedForeground} />}
+            <Text style={[styles.geoBtnText, { color: latitude ? colors.gold : colors.mutedForeground }]}>
+              {geocoding ? "Recherche en cours…" : latitude ? `Coordonnées trouvées (${latitude.toFixed(4)}, ${longitude?.toFixed(4)})` : "Géolocaliser l'adresse"}
+            </Text>
+          </Pressable>
         </Section>
 
         <Section title="Participants & Prix" colors={colors}>
@@ -400,4 +442,6 @@ const styles = StyleSheet.create({
   payoutNet: { fontSize: 16, fontFamily: "Inter_700Bold" },
   payoutTotal: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, padding: 8, marginTop: 4 },
   payoutTotalText: { fontSize: 12, fontFamily: "Inter_600SemiBold", flex: 1 },
+  geoBtn: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, borderWidth: 1, paddingVertical: 11, paddingHorizontal: 14 },
+  geoBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
 });

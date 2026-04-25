@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -10,6 +11,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -52,7 +54,7 @@ type LocationMode = "all" | "around" | "city" | "country";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, events, unreadNotifCount } = useApp();
+  const { user, events, unreadNotifCount, refreshEvents, eventsLoading } = useApp();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [filterModal, setFilterModal] = useState(false);
@@ -165,7 +167,6 @@ export default function HomeScreen() {
     return result;
   }, [events, search, selectedCategory, sortBy, priceMin, priceMax, onlyFree, onlyAvailable, onlyNfc, dateFilter, locationMode, radiusKm, cityFilter, countryFilter, userCoords]);
 
-  const featured = filteredEvents.slice(0, 3);
   const filtersActive = sortBy !== "date" || !!priceMax || !!priceMin || onlyFree || onlyAvailable || onlyNfc || dateFilter !== "all" || locationMode !== "all";
   const activeFilterCount = [priceMin, priceMax, onlyFree, onlyAvailable, onlyNfc, dateFilter !== "all", locationMode !== "all", sortBy !== "date"].filter(Boolean).length;
 
@@ -183,139 +184,145 @@ export default function HomeScreen() {
     setCountryFilter("");
   };
 
+  const timeGreeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 12) return "Bonjour";
+    if (h >= 12 && h < 18) return "Bon après-midi";
+    return "Bonsoir";
+  }, []);
+
+  const locChipData = useMemo(() => {
+    if (locationMode === "around") return { icon: "map-pin" as const, label: "Près de moi" };
+    if (locationMode === "city" && cityFilter) return { icon: "navigation" as const, label: cityFilter };
+    if (locationMode === "country" && countryFilter) return { icon: "flag" as const, label: countryFilter };
+    return { icon: "globe" as const, label: "Partout" };
+  }, [locationMode, cityFilter, countryFilter]);
+
+  const suggestions = filteredEvents.slice(0, 5);
+  const restEvents = filteredEvents.slice(5);
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+
+      {/* ── Sticky header ────────────────────────────────────────────────── */}
+      <View style={[styles.stickyHeader, { paddingTop: topPad + 12, backgroundColor: colors.background }]}>
+
+        {/* Top row */}
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
+              {timeGreeting}{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+            </Text>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Où va-t-on ?</Text>
+          </View>
+          <View style={styles.headerRight}>
+            {/* Location chip */}
+            <Pressable
+              style={[styles.locDisplayChip, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilterModal(true); }}
+            >
+              <Feather name={locChipData.icon} size={11} color={colors.gold} />
+              <Text style={[styles.locDisplayText, { color: colors.foreground }]} numberOfLines={1}>{locChipData.label}</Text>
+            </Pressable>
+            {/* Bell */}
+            <Pressable onPress={() => router.push(user ? "/notifications" : "/auth")} style={{ position: "relative" }}>
+              <Feather name="bell" size={22} color={colors.mutedForeground} />
+              {unreadNotifCount > 0 && (
+                <View style={[styles.bellBadge, { backgroundColor: colors.gold }]}>
+                  <Text style={styles.bellText}>{unreadNotifCount > 9 ? "9+" : unreadNotifCount}</Text>
+                </View>
+              )}
+            </Pressable>
+            {/* Avatar */}
+            <Pressable
+              onPress={() => router.push(user ? "/(tabs)/profile" : "/auth")}
+              style={[styles.avatarBtn, { backgroundColor: user ? colors.gold : colors.muted }]}
+            >
+              {user?.avatar ? (
+                <Image source={{ uri: user.avatar }} style={styles.avatarImg} contentFit="cover" />
+              ) : user ? (
+                <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+              ) : (
+                <Feather name="user" size={18} color={colors.mutedForeground} />
+              )}
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Search + filter */}
+        <View style={styles.searchRow}>
+          <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}>
+            <Feather name="search" size={16} color={colors.mutedForeground} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.foreground }]}
+              placeholder="Chercher un événement..."
+              placeholderTextColor={colors.mutedForeground}
+              value={search}
+              onChangeText={setSearch}
+            />
+            {!!search && (
+              <Pressable onPress={() => setSearch("")}>
+                <Feather name="x-circle" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            )}
+          </View>
+          <Pressable
+            style={[styles.filterBtn, { backgroundColor: filtersActive ? colors.gold : colors.card, borderColor: filtersActive ? colors.gold : colors.border }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilterModal(true); }}
+          >
+            <Feather name="sliders" size={16} color={filtersActive ? "#0D0D0D" : colors.mutedForeground} />
+            {activeFilterCount > 0 && (
+              <View style={[styles.filterCountBadge, { backgroundColor: "#0D0D0D" }]}>
+                <Text style={styles.filterCountText}>{activeFilterCount}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+
+        {/* Active location indicator */}
+        {locationMode !== "all" && (
+          <View style={[styles.locChip, { backgroundColor: colors.gold + "15", borderColor: colors.gold + "40" }]}>
+            <Feather name={locChipData.icon} size={12} color={colors.gold} />
+            <Text style={[styles.locChipText, { color: colors.gold }]}>{locChipData.label}{locationMode === "around" && radiusKm > 0 ? ` · ${radiusKm} km` : ""}</Text>
+            <Pressable onPress={() => { setLocationMode("all"); setCityFilter(""); setCountryFilter(""); }}>
+              <Feather name="x" size={12} color={colors.gold} />
+            </Pressable>
+          </View>
+        )}
+
+        {/* Category pills */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catList}>
+          {CATEGORIES.map(cat => (
+            <Pressable
+              key={cat}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedCategory(cat); }}
+              style={[styles.catChip, selectedCategory === cat
+                ? { backgroundColor: colors.gold, borderColor: colors.gold }
+                : { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Text style={[styles.catText, { color: selectedCategory === cat ? "#0D0D0D" : colors.mutedForeground }]}>{cat}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* ── Scrollable events ─────────────────────────────────────────────── */}
       <FlatList
-        data={filteredEvents}
+        data={restEvents}
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 100 : 80 + insets.bottom }}
+        refreshControl={<RefreshControl refreshing={eventsLoading} onRefresh={refreshEvents} tintColor={colors.gold} colors={[colors.gold]} />}
         ListHeaderComponent={
           <View>
-            <View style={[styles.header, { paddingTop: topPad + 16 }]}>
-              <View style={styles.headerRow}>
-                <View>
-                  <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-                    {user?.name ? `Bonjour, ${user.name.split(" ")[0]} 👋` : "Découvrez"}
-                  </Text>
-                  <Text style={[styles.headerTitle, { color: colors.foreground }]}>Mes événements</Text>
-                </View>
-                <View style={styles.headerRight}>
-                  {user && (
-                    <Pressable
-                      style={[styles.pointsPill, { backgroundColor: colors.gold + "20", borderColor: colors.gold + "40" }]}
-                      onPress={() => router.push("/(tabs)/profile")}
-                    >
-                      <Feather name="zap" size={12} color={colors.gold} />
-                      <Text style={[styles.pointsNum, { color: colors.gold }]}>{user.points.toLocaleString("fr-FR")}</Text>
-                    </Pressable>
-                  )}
-                  <Pressable
-                    onPress={() => router.push(user ? "/notifications" : "/auth")}
-                    style={{ position: "relative" }}
-                  >
-                    <Feather name="bell" size={22} color={colors.mutedForeground} />
-                    {unreadNotifCount > 0 && (
-                      <View style={[styles.bellBadge, { backgroundColor: colors.gold }]}>
-                        <Text style={styles.bellText}>{unreadNotifCount > 9 ? "9+" : unreadNotifCount}</Text>
-                      </View>
-                    )}
-                  </Pressable>
-                  <Pressable
-                    onPress={() => router.push(user ? "/(tabs)/profile" : "/auth")}
-                    style={[styles.avatarBtn, { backgroundColor: user ? colors.gold : colors.muted }]}
-                  >
-                    {user ? (
-                      <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
-                    ) : (
-                      <Feather name="user" size={18} color={colors.mutedForeground} />
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={styles.searchRow}>
-                <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border, flex: 1 }]}>
-                  <Feather name="search" size={16} color={colors.mutedForeground} />
-                  <TextInput
-                    style={[styles.searchInput, { color: colors.foreground }]}
-                    placeholder="Chercher un événement..."
-                    placeholderTextColor={colors.mutedForeground}
-                    value={search}
-                    onChangeText={setSearch}
-                  />
-                  {!!search && (
-                    <Pressable onPress={() => setSearch("")}>
-                      <Feather name="x-circle" size={16} color={colors.mutedForeground} />
-                    </Pressable>
-                  )}
-                </View>
-                <Pressable
-                  style={[styles.filterBtn, { backgroundColor: filtersActive ? colors.gold : colors.card, borderColor: filtersActive ? colors.gold : colors.border }]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilterModal(true); }}
-                >
-                  <Feather name="sliders" size={16} color={filtersActive ? "#0D0D0D" : colors.mutedForeground} />
-                  {activeFilterCount > 0 && (
-                    <View style={[styles.filterCountBadge, { backgroundColor: "#0D0D0D" }]}>
-                      <Text style={styles.filterCountText}>{activeFilterCount}</Text>
-                    </View>
-                  )}
-                </Pressable>
-              </View>
-
-              {locationMode === "around" && userCoords && (
-                <View style={[styles.locChip, { backgroundColor: colors.gold + "15", borderColor: colors.gold + "40" }]}>
-                  <Feather name="map-pin" size={12} color={colors.gold} />
-                  <Text style={[styles.locChipText, { color: colors.gold }]}>
-                    Autour de moi · {radiusKm === 0 ? "sans limite" : `${radiusKm} km`}
-                  </Text>
-                  <Pressable onPress={() => setLocationMode("all")}>
-                    <Feather name="x" size={12} color={colors.gold} />
-                  </Pressable>
-                </View>
-              )}
-              {locationMode === "city" && cityFilter && (
-                <View style={[styles.locChip, { backgroundColor: colors.gold + "15", borderColor: colors.gold + "40" }]}>
-                  <Feather name="navigation" size={12} color={colors.gold} />
-                  <Text style={[styles.locChipText, { color: colors.gold }]}>Ville : {cityFilter}</Text>
-                  <Pressable onPress={() => { setLocationMode("all"); setCityFilter(""); }}>
-                    <Feather name="x" size={12} color={colors.gold} />
-                  </Pressable>
-                </View>
-              )}
-              {locationMode === "country" && countryFilter && (
-                <View style={[styles.locChip, { backgroundColor: colors.gold + "15", borderColor: colors.gold + "40" }]}>
-                  <Feather name="flag" size={12} color={colors.gold} />
-                  <Text style={[styles.locChipText, { color: colors.gold }]}>Pays : {countryFilter}</Text>
-                  <Pressable onPress={() => { setLocationMode("all"); setCountryFilter(""); }}>
-                    <Feather name="x" size={12} color={colors.gold} />
-                  </Pressable>
-                </View>
-              )}
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catList}>
-              {CATEGORIES.map(cat => (
-                <Pressable
-                  key={cat}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedCategory(cat); }}
-                  style={[styles.catChip, selectedCategory === cat
-                    ? { backgroundColor: colors.gold, borderColor: colors.gold }
-                    : { backgroundColor: colors.card, borderColor: colors.border }]}
-                >
-                  <Text style={[styles.catText, { color: selectedCategory === cat ? "#0D0D0D" : colors.mutedForeground }]}>{cat}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-
-            {filteredEvents.length > 0 && (
+            {suggestions.length > 0 && (
               <>
                 <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>À venir</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Suggestions de la semaine</Text>
                   <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>{filteredEvents.length} événements</Text>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredList}>
-                  {featured.map(ev => {
+                  {suggestions.map(ev => {
                     const dist = userCoords && ev.latitude && ev.longitude
                       ? haversineDistance(userCoords.lat, userCoords.lon, ev.latitude, ev.longitude)
                       : null;
@@ -331,37 +338,44 @@ export default function HomeScreen() {
                     );
                   })}
                 </ScrollView>
-                {filteredEvents.length > 3 && (
-                  <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Tous les événements</Text>
-                  </View>
-                )}
               </>
+            )}
+            {restEvents.length > 0 && (
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Tous les événements</Text>
+              </View>
             )}
           </View>
         }
-        renderItem={({ item, index }) => {
-          if (index < 3) return null;
-          return <View style={styles.listItem}><EventCard event={item} /></View>;
-        }}
+        renderItem={({ item }) => <View style={styles.listItem}><EventCard event={item} /></View>}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
-              <Feather name="calendar" size={36} color={colors.mutedForeground} />
+          filteredEvents.length === 0 ? (
+            <View style={styles.empty}>
+              <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
+                {eventsLoading
+                  ? <ActivityIndicator size="large" color={colors.gold} />
+                  : <Feather name="calendar" size={36} color={colors.mutedForeground} />}
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+                {eventsLoading ? "Chargement..." : "Aucun événement"}
+              </Text>
+              {!eventsLoading && (
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                  Essayez d'élargir vos filtres ou créez votre propre événement
+                </Text>
+              )}
+              {filtersActive && !eventsLoading && (
+                <Pressable style={[styles.createBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]} onPress={resetFilters}>
+                  <Text style={[styles.createBtnText, { color: colors.foreground }]}>Réinitialiser les filtres</Text>
+                </Pressable>
+              )}
+              {!eventsLoading && (
+                <Pressable style={[styles.createBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/create")}>
+                  <Text style={styles.createBtnText}>Créer un événement</Text>
+                </Pressable>
+              )}
             </View>
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Aucun événement</Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Essayez d'élargir vos filtres ou créez votre propre événement
-            </Text>
-            {filtersActive && (
-              <Pressable style={[styles.createBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]} onPress={resetFilters}>
-                <Text style={[styles.createBtnText, { color: colors.foreground }]}>Réinitialiser les filtres</Text>
-              </Pressable>
-            )}
-            <Pressable style={[styles.createBtn, { backgroundColor: colors.gold }]} onPress={() => router.push("/create")}>
-              <Text style={styles.createBtnText}>Créer un événement</Text>
-            </Pressable>
-          </View>
+          ) : null
         }
       />
 
@@ -557,16 +571,17 @@ function ToggleRow({ value, onToggle, colors, icon, label }: { value: boolean; o
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16 },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  stickyHeader: { paddingHorizontal: 20, paddingBottom: 8 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   greeting: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 2 },
-  headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  headerTitle: { fontSize: 26, fontFamily: "Inter_700Bold" },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  pointsPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
-  pointsNum: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  locDisplayChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1, maxWidth: 110 },
+  locDisplayText: { fontSize: 11, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   bellBadge: { position: "absolute", top: -4, right: -6, width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   bellText: { fontSize: 8, fontFamily: "Inter_700Bold", color: "#0D0D0D" },
-  avatarBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  avatarBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  avatarImg: { width: 38, height: 38, borderRadius: 19 },
   avatarText: { color: "#0D0D0D", fontSize: 15, fontFamily: "Inter_700Bold" },
   searchRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11 },

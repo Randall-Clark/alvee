@@ -99,7 +99,7 @@ const CARD_H = CARD_W * 0.62;
 export default function NFCCardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, orderNFCCard, upgradeCard } = useApp();
+  const { user, orderNFCCard, upgradeCard, nfcCardsList, deactivateNfcCard, deleteNfcCard, refreshNfcCards } = useApp();
   const [loading, setLoading] = useState<CardTier | null>(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const listRef = useRef<FlatList>(null);
@@ -221,6 +221,64 @@ export default function NFCCardScreen() {
             <Text style={[styles.currentText, { color: colors.gold }]}>
               Carte active : <Text style={{ fontFamily: "Inter_700Bold" }}>{user.nfcCardTier.charAt(0).toUpperCase() + user.nfcCardTier.slice(1)}</Text>
             </Text>
+          </View>
+        )}
+
+        {/* ── Mes cartes actives ── */}
+        {nfcCardsList.length > 0 && (
+          <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+            <Text style={[styles.mesCartesTitle, { color: colors.gold }]}>MES CARTES</Text>
+            {nfcCardsList.map(card => {
+              const plan = PLANS.find(p => p.tier === card.tier);
+              const expDate = new Date(card.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+              return (
+                <View key={card.id} style={[styles.mesCartesRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <LinearGradient
+                    colors={plan?.gradient ?? ["#333", "#111"]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={styles.mesCartesGradient}
+                  >
+                    <Feather name="credit-card" size={14} color={plan?.textColor ?? "#fff"} />
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.mesCartesTier, { color: colors.foreground }]}>
+                      {plan?.name ?? card.tier} {!card.isActive && "(Désactivée)"}
+                    </Text>
+                    <Text style={[styles.mesCartesExpiry, { color: colors.mutedForeground }]}>
+                      Expire le {expDate}
+                    </Text>
+                  </View>
+                  <View style={styles.mesCartesActions}>
+                    {card.isActive && (
+                      <Pressable
+                        onPress={() => Alert.alert("Désactiver", `Désactiver la carte ${plan?.name} ?`, [
+                          { text: "Annuler", style: "cancel" },
+                          { text: "Désactiver", style: "destructive", onPress: async () => {
+                            const ok = await deactivateNfcCard(card.id);
+                            if (!ok) Alert.alert("Erreur", "Impossible de désactiver la carte.");
+                          }}
+                        ])}
+                        style={[styles.mesCartesBtn, { backgroundColor: colors.muted }]}
+                      >
+                        <Feather name="power" size={13} color={colors.mutedForeground} />
+                      </Pressable>
+                    )}
+                    <Pressable
+                      onPress={() => Alert.alert("Supprimer", `Supprimer définitivement la carte ${plan?.name} ?`, [
+                        { text: "Annuler", style: "cancel" },
+                        { text: "Supprimer", style: "destructive", onPress: async () => {
+                          const ok = await deleteNfcCard(card.id);
+                          if (!ok) Alert.alert("Erreur", "Impossible de supprimer la carte.");
+                        }}
+                      ])}
+                      style={[styles.mesCartesBtn, { backgroundColor: colors.destructive ? colors.destructive + "20" : "#FF444420" }]}
+                    >
+                      <Feather name="trash-2" size={13} color={colors.destructive ?? "#FF4444"} />
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -401,4 +459,11 @@ const styles = StyleSheet.create({
   downgradeText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   infoBox: { flexDirection: "row", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, alignItems: "flex-start", marginTop: 4 },
   infoText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 17 },
+  mesCartesTitle: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 0.8, marginBottom: 10, textTransform: "uppercase" },
+  mesCartesRow: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 8 },
+  mesCartesGradient: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  mesCartesTier: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  mesCartesExpiry: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  mesCartesActions: { flexDirection: "row", gap: 8 },
+  mesCartesBtn: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
 });

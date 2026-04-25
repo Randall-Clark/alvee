@@ -1,7 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import * as api from "@/services/api";
 
 export type CardTier = "none" | "standard" | "prime" | "platinum";
+export type { NfcCardItem } from "@/services/api";
 
 export interface User {
   id: string;
@@ -66,6 +68,7 @@ export interface Event {
   organizerName: string;
   coverImage?: string;
   coverImageUri?: string;
+  imageUrl?: string;
   totalPoints: number;
   nfcOnlyEntry: boolean;
   status: "upcoming" | "ongoing" | "completed" | "cancelled";
@@ -138,7 +141,7 @@ export interface PointTransaction {
   createdAt: string;
 }
 
-function computeEventPoints(priceCad: number): number {
+export function computeEventPoints(priceCad: number): number {
   if (priceCad < 100) return 20;
   if (priceCad <= 500) return 45;
   return 100;
@@ -170,20 +173,13 @@ export function refundDeadline(tier: CardTier): string {
   return "jour même";
 }
 
-const SAMPLE_EVENTS: Event[] = [
-  {
-    id: "event_001", title: "Soirée Jazz & Connexions", description: "Une soirée intime autour du jazz live, pensée pour créer des rencontres authentiques.", category: "Music", date: "2026-05-15", time: "20:00", location: "Le Jazz Club Parisien", address: "15 Rue de la Paix, Paris 75001", price: 25, maxParticipants: 50, currentParticipants: 18, organizerId: "user_org_01", organizerName: "Marie Dupont", coverImage: "evt_jazz", totalPoints: computeEventPoints(25), nfcOnlyEntry: false, status: "upcoming", tags: ["Jazz", "Live Music", "Social"], latitude: 48.8698, longitude: 2.3311,
-  },
-  {
-    id: "event_002", title: "Tech Meetup — IA & Futur", description: "Rejoignez les passionnés de technologie pour explorer l'avenir de l'intelligence artificielle.", category: "Tech", date: "2026-05-20", time: "18:30", location: "Station F", address: "5 Parvis Alan Turing, Paris 75013", price: 15, maxParticipants: 100, currentParticipants: 42, organizerId: "user_org_02", organizerName: "Karim Benali", coverImage: "evt_tech", totalPoints: computeEventPoints(15), nfcOnlyEntry: false, status: "upcoming", tags: ["AI", "Tech", "Networking"], latitude: 48.8300, longitude: 2.3664,
-  },
-  {
-    id: "event_003", title: "Brunch Art & Rencontres", description: "Un brunch dominical dans une galerie d'art contemporain.", category: "Art", date: "2026-05-25", time: "11:00", location: "Galerie Contemporaine", address: "28 Rue Oberkampf, Paris 75011", price: 350, maxParticipants: 30, currentParticipants: 12, organizerId: "user_org_03", organizerName: "Sophie Martin", coverImage: "evt_art", totalPoints: computeEventPoints(350), nfcOnlyEntry: false, status: "upcoming", tags: ["Art", "Brunch", "Culture"], latitude: 48.8637, longitude: 2.3752,
-  },
-  {
-    id: "event_004", title: "Run & Connect", description: "Une course matinale de 5km suivie d'un petit-déjeuner convivial.", category: "Sport", date: "2026-06-01", time: "08:00", location: "Bois de Boulogne", address: "Allée de Longchamp, Paris 75016", price: 10, maxParticipants: 80, currentParticipants: 35, organizerId: "user_org_04", organizerName: "Alex Petit", coverImage: "evt_run", totalPoints: computeEventPoints(10), nfcOnlyEntry: false, status: "upcoming", tags: ["Running", "Sport", "Social"], latitude: 48.8620, longitude: 2.2480,
-  },
-];
+function generateReferralCode(name: string): string {
+  const base = name.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 4).padEnd(4, "X");
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `${base}${rand}`;
+}
+
+import type { NfcCardItem } from "@/services/api";
 
 interface AppContextType {
   user: User | null;
@@ -194,8 +190,11 @@ interface AppContextType {
   messages: Message[];
   conversations: Conversation[];
   isAuthenticated: boolean;
+  authToken: string | null;
   unreadNotifCount: number;
   unreadMsgCount: number;
+  nfcCardsList: NfcCardItem[];
+  eventsLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (name: string, email: string, password: string, country?: string, phone?: string, address?: string) => Promise<boolean>;
   socialLogin: (provider: "google" | "apple" | "facebook", profile: { name: string; email: string; country?: string; phone?: string }) => Promise<boolean>;
@@ -230,6 +229,10 @@ interface AppContextType {
   applyReferralCode: (code: string) => Promise<"ok" | "self" | "maxed" | "invalid">;
   setEventPromoCode: (eventId: string, promo: PromoCode | undefined) => Promise<void>;
   requestPayout: (eventId: string, accountId: string) => Promise<void>;
+  refreshEvents: () => Promise<void>;
+  refreshNfcCards: () => Promise<void>;
+  deactivateNfcCard: (id: string) => Promise<boolean>;
+  deleteNfcCard: (id: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -246,46 +249,101 @@ const SK = {
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [events, setEvents] = useState<Event[]>(SAMPLE_EVENTS);
+  const [events, setEvents] = useState<Event[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [pointTransactions, setPointTransactions] = useState<PointTransaction[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [nfcCardsList, setNfcCardsList] = useState<NfcCardItem[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
+
+  const saveUser = (u: User) => AsyncStorage.setItem(SK.USER, JSON.stringify(u));
+  const saveBookings = (bs: Booking[]) => AsyncStorage.setItem(SK.BOOKINGS, JSON.stringify(bs));
+  const saveTx = (txs: PointTransaction[]) => AsyncStorage.setItem(SK.TRANSACTIONS, JSON.stringify(txs));
+  const saveNotifs = (ns: AppNotification[]) => AsyncStorage.setItem(SK.NOTIFICATIONS, JSON.stringify(ns));
+  const saveMsgs = (ms: Message[]) => AsyncStorage.setItem(SK.MESSAGES, JSON.stringify(ms));
+
+  const loadEventsFromApi = async (token?: string | null) => {
+    try {
+      setEventsLoading(true);
+      const { events: apiEvs } = await api.events.list(token);
+      setEvents(apiEvs);
+    } catch {
+      const ed = await AsyncStorage.getItem(SK.EVENTS);
+      if (ed) setEvents(JSON.parse(ed));
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  const loadNfcCards = async (token: string) => {
+    try {
+      const { cards } = await api.nfcCards.list(token);
+      setNfcCardsList(cards);
+    } catch {}
+  };
+
+  const buildUser = (apiUser: any, localUser: User | null): User => {
+    const defaults: User = {
+      id: apiUser.id,
+      name: apiUser.name,
+      email: apiUser.email,
+      points: 150,
+      nfcCardOrdered: false,
+      nfcCardTier: "none",
+      eventsAttended: 0,
+      eventsCreated: 0,
+      savedPaymentMethods: [],
+      referralCode: generateReferralCode(apiUser.name),
+      referralCount: 0,
+    };
+    return { ...defaults, ...localUser, ...api.mapApiUser(apiUser) } as User;
+  };
 
   const loadData = async () => {
     try {
-      const [ud, ed, bd, txd, nd, md] = await Promise.all([
+      let loggedInFromApi = false;
+      const token = await api.loadToken();
+      if (token) {
+        try {
+          const { user: apiUser } = await api.auth.me(token);
+          const localUserStr = await AsyncStorage.getItem(SK.USER);
+          const localUser: User | null = localUserStr ? JSON.parse(localUserStr) : null;
+          const restored = buildUser(apiUser, localUser);
+          setUser(restored);
+          setIsAuthenticated(true);
+          setAuthToken(token);
+          await saveUser(restored);
+          loggedInFromApi = true;
+          loadEventsFromApi(token);
+          loadNfcCards(token);
+        } catch {
+          await api.clearToken();
+        }
+      }
+
+      if (!loggedInFromApi) {
+        loadEventsFromApi(null);
+      }
+
+      const [ud, bd, txd, nd, md] = await Promise.all([
         AsyncStorage.getItem(SK.USER),
-        AsyncStorage.getItem(SK.EVENTS),
         AsyncStorage.getItem(SK.BOOKINGS),
         AsyncStorage.getItem(SK.TRANSACTIONS),
         AsyncStorage.getItem(SK.NOTIFICATIONS),
         AsyncStorage.getItem(SK.MESSAGES),
       ]);
-      if (ud) { setUser(JSON.parse(ud)); setIsAuthenticated(true); }
-      if (ed) {
-        const parsed: Event[] = JSON.parse(ed);
-        const merged = [...SAMPLE_EVENTS.filter(e => !parsed.find(p => p.id === e.id)), ...parsed];
-        setEvents(merged);
-      }
+      if (!loggedInFromApi && ud) { setUser(JSON.parse(ud)); setIsAuthenticated(true); }
       if (bd) setBookings(JSON.parse(bd));
       if (txd) setPointTransactions(JSON.parse(txd));
       if (nd) setNotifications(JSON.parse(nd));
       if (md) setMessages(JSON.parse(md));
     } catch (_e) {}
   };
-
-  const saveUser = (u: User) => AsyncStorage.setItem(SK.USER, JSON.stringify(u));
-  const saveEvents = (evs: Event[]) => AsyncStorage.setItem(SK.EVENTS, JSON.stringify(evs.filter(e => !SAMPLE_EVENTS.find(se => se.id === e.id))));
-  const saveBookings = (bs: Booking[]) => AsyncStorage.setItem(SK.BOOKINGS, JSON.stringify(bs));
-  const saveTx = (txs: PointTransaction[]) => AsyncStorage.setItem(SK.TRANSACTIONS, JSON.stringify(txs));
-  const saveNotifs = (ns: AppNotification[]) => AsyncStorage.setItem(SK.NOTIFICATIONS, JSON.stringify(ns));
-  const saveMsgs = (ms: Message[]) => AsyncStorage.setItem(SK.MESSAGES, JSON.stringify(ms));
 
   const addNotification = useCallback((n: Omit<AppNotification, "id" | "createdAt" | "read">) => {
     const notif: AppNotification = { ...n, id: `notif_${Date.now()}`, read: false, createdAt: new Date().toISOString() };
@@ -298,34 +356,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUser(prev => { if (!prev) return prev; const next = { ...prev, points: prev.points + points }; saveUser(next); return next; });
   }, []);
 
-  const login = async (email: string, _pw: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const s = await AsyncStorage.getItem(SK.ALL_USERS);
-      const all: User[] = s ? JSON.parse(s) : [];
-      const found = all.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (found) { setUser(found); setIsAuthenticated(true); await saveUser(found); return true; }
+      const { token, user: apiUser } = await api.auth.login(email, password);
+      await api.saveToken(token);
+      setAuthToken(token);
+      const localUserStr = await AsyncStorage.getItem(SK.USER);
+      const localUser: User | null = localUserStr ? JSON.parse(localUserStr) : null;
+      const merged = buildUser(apiUser, localUser);
+      setUser(merged);
+      setIsAuthenticated(true);
+      await saveUser(merged);
+      loadEventsFromApi(token);
+      loadNfcCards(token);
+      return true;
+    } catch {
+      try {
+        const s = await AsyncStorage.getItem(SK.ALL_USERS);
+        const all: User[] = s ? JSON.parse(s) : [];
+        const found = all.find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (found) { setUser(found); setIsAuthenticated(true); await saveUser(found); return true; }
+      } catch {}
       return false;
-    } catch { return false; }
+    }
   };
 
-  function generateReferralCode(name: string): string {
-    const base = name.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 4).padEnd(4, "X");
-    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-    return `${base}${rand}`;
-  }
-
-  const register = async (name: string, email: string, _pw: string, country?: string, phone?: string, address?: string): Promise<boolean> => {
+  const register = async (name: string, email: string, password: string, country?: string, phone?: string, _address?: string): Promise<boolean> => {
     try {
-      const s = await AsyncStorage.getItem(SK.ALL_USERS);
-      const all: User[] = s ? JSON.parse(s) : [];
-      if (all.find(u => u.email.toLowerCase() === email.toLowerCase())) return false;
-      const newUser: User = { id: `user_${Date.now()}`, name, email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [], country, phone, address, referralCode: generateReferralCode(name), referralCount: 0 };
-      all.push(newUser);
-      await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(all));
+      const { token, user: apiUser } = await api.auth.register(name, email, password, phone);
+      await api.saveToken(token);
+      setAuthToken(token);
+      const newUser: User = {
+        id: apiUser.id, name, email,
+        points: 150, nfcCardOrdered: false, nfcCardTier: "none",
+        eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [],
+        referralCode: generateReferralCode(name), referralCount: 0,
+        phone, country,
+        ...api.mapApiUser(apiUser),
+      } as User;
       setUser(newUser); setIsAuthenticated(true); await saveUser(newUser);
-      addNotification({ type: "points", title: "Bienvenue sur Alvee !", body: "Vous avez reçu 150 points de bienvenue." });
+      addNotification({ type: "points", title: "Bienvenue sur Alvee !", body: "Votre compte est créé. Explorez les événements !" });
+      loadEventsFromApi(token);
       return true;
-    } catch { return false; }
+    } catch {
+      try {
+        const s = await AsyncStorage.getItem(SK.ALL_USERS);
+        const all: User[] = s ? JSON.parse(s) : [];
+        if (all.find(u => u.email.toLowerCase() === email.toLowerCase())) return false;
+        const newUser: User = { id: `user_${Date.now()}`, name, email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [], country, phone, referralCode: generateReferralCode(name), referralCount: 0 };
+        all.push(newUser);
+        await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(all));
+        setUser(newUser); setIsAuthenticated(true); await saveUser(newUser);
+        addNotification({ type: "points", title: "Bienvenue sur Alvee !", body: "Vous avez reçu 150 points de bienvenue." });
+        return true;
+      } catch { return false; }
+    }
   };
 
   const socialLogin = async (_provider: "google" | "apple" | "facebook", profile: { name: string; email: string; country?: string; phone?: string }): Promise<boolean> => {
@@ -333,10 +418,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const s = await AsyncStorage.getItem(SK.ALL_USERS);
       const all: User[] = s ? JSON.parse(s) : [];
       let found = all.find(u => u.email.toLowerCase() === profile.email.toLowerCase());
-      if (found) {
-        setUser(found); setIsAuthenticated(true); await saveUser(found);
-        return true;
-      }
+      if (found) { setUser(found); setIsAuthenticated(true); await saveUser(found); return true; }
       const newUser: User = { id: `user_${Date.now()}`, name: profile.name, email: profile.email, points: 150, nfcCardOrdered: false, nfcCardTier: "none", eventsAttended: 0, eventsCreated: 0, savedPaymentMethods: [], country: profile.country, phone: profile.phone, referralCode: generateReferralCode(profile.name), referralCount: 0 };
       all.push(newUser);
       await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(all));
@@ -346,13 +428,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch { return false; }
   };
 
-  const logout = () => { setUser(null); setIsAuthenticated(false); AsyncStorage.removeItem(SK.USER); };
+  const logout = () => {
+    setUser(null);
+    setIsAuthenticated(false);
+    setAuthToken(null);
+    setNfcCardsList([]);
+    api.clearToken();
+    AsyncStorage.removeItem(SK.USER);
+    loadEventsFromApi(null);
+  };
 
   const createEvent = async (data: Omit<Event, "id" | "currentParticipants" | "totalPoints" | "status">): Promise<Event> => {
+    if (authToken) {
+      try {
+        const { event } = await api.events.create(authToken, {
+          title: data.title,
+          description: data.description,
+          category: data.category,
+          date: data.date,
+          time: data.time,
+          location: data.location,
+          address: data.address,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          price: data.price,
+          capacity: data.maxParticipants,
+          imageUrl: (data as any).imageUrl,
+          nfcOnlyEntry: data.nfcOnlyEntry,
+        });
+        setEvents(prev => [event, ...prev]);
+        if (user) { const u = { ...user, eventsCreated: user.eventsCreated + 1 }; setUser(u); await saveUser(u); }
+        addNotification({ type: "booking", title: "Événement créé !", body: `"${event.title}" est maintenant visible.` });
+        return event;
+      } catch {}
+    }
     const totalPoints = computeEventPoints(data.price);
     const ev: Event = { ...data, id: `event_${Date.now()}`, currentParticipants: 0, totalPoints, status: "upcoming" };
-    const next = [...events, ev];
-    setEvents(next); await saveEvents(next);
+    setEvents(prev => [ev, ...prev]);
     if (user) { const u = { ...user, eventsCreated: user.eventsCreated + 1 }; setUser(u); await saveUser(u); }
     addNotification({ type: "booking", title: "Événement créé !", body: `"${ev.title}" est maintenant visible.` });
     return ev;
@@ -374,10 +486,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     const nextBookings = [...bookings, booking];
     setBookings(nextBookings); await saveBookings(nextBookings);
-    const nextEvents = events.map(e => e.id === eventId ? { ...e, currentParticipants: e.currentParticipants + 1 } : e);
-    setEvents(nextEvents); await saveEvents(nextEvents);
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, currentParticipants: e.currentParticipants + 1 } : e));
     addPoints(pointsEarned, "event_booking", `Inscription: ${event.title}`, eventId);
-    addNotification({ type: "booking", title: "Réservation confirmée !", body: `Votre billet pour "${event.title}" est prêt. +${pointsEarned} points !` });
+    addNotification({ type: "booking", title: "Réservation confirmée !", body: `Votre billet pour "${event.title}" est prêt. +${pointsEarned} pts !` });
     return booking;
   };
 
@@ -387,35 +498,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!booking) return { success: false, refunded: false, message: "Billet introuvable" };
     const event = events.find(e => e.id === booking.eventId);
     if (!event) return { success: false, refunded: false, message: "Événement introuvable" };
-
     const eventDate = new Date(`${event.date}T${event.time}`);
-    const now = new Date();
-    const hoursLeft = (eventDate.getTime() - now.getTime()) / 3600000;
-
-    let canRefund = false;
-    if (user.nfcCardTier === "standard" || user.nfcCardTier === "none") {
-      canRefund = hoursLeft >= 24;
-    } else {
-      canRefund = hoursLeft >= 0;
-    }
-
+    const hoursLeft = (eventDate.getTime() - Date.now()) / 3600000;
+    const canRefund = (user.nfcCardTier === "standard" || user.nfcCardTier === "none") ? hoursLeft >= 24 : hoursLeft >= 0;
     const next = bookings.map(b => b.id === bookingId ? { ...b, status: "cancelled" as const } : b);
     setBookings(next); await saveBookings(next);
-
-    const nextEvents = events.map(e => e.id === booking.eventId ? { ...e, currentParticipants: Math.max(0, e.currentParticipants - 1) } : e);
-    setEvents(nextEvents); await saveEvents(nextEvents);
-
+    setEvents(prev => prev.map(e => e.id === booking.eventId ? { ...e, currentParticipants: Math.max(0, e.currentParticipants - 1) } : e));
     if (canRefund) {
       addNotification({ type: "refund", title: "Remboursement en cours", body: `Votre remboursement pour "${event.title}" sera traité sous 3-5 jours.` });
       return { success: true, refunded: true, message: "Réservation annulée. Remboursement sous 3-5 jours." };
     } else {
-      addNotification({ type: "refund", title: "Annulation effectuée", body: `Votre participation à "${event.title}" a été annulée (sans remboursement).` });
+      addNotification({ type: "refund", title: "Annulation effectuée", body: `Participation à "${event.title}" annulée (sans remboursement).` });
       return { success: true, refunded: false, message: "Annulation effectuée. Aucun remboursement (délai dépassé)." };
     }
   };
 
   const walkInBooking = async (eventId: string): Promise<Booking | null> => {
-    if (!user || (user.nfcCardTier === "none")) return null;
+    if (!user || user.nfcCardTier === "none") return null;
     const event = events.find(e => e.id === eventId);
     if (!event) return null;
     const registrationOrder = event.currentParticipants + 1;
@@ -427,8 +526,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     const nextBookings = [...bookings, booking];
     setBookings(nextBookings); await saveBookings(nextBookings);
-    const nextEvents = events.map(e => e.id === eventId ? { ...e, currentParticipants: e.currentParticipants + 1 } : e);
-    setEvents(nextEvents); await saveEvents(nextEvents);
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, currentParticipants: e.currentParticipants + 1 } : e));
     addPoints(pointsEarned, "walk_in", `Walk-in: ${event.title}`, eventId);
     return booking;
   };
@@ -460,6 +558,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const orderNFCCard = async (tier: CardTier) => {
     if (!user) return false;
+    if (authToken) {
+      try {
+        const result = await api.nfcCards.subscribe(authToken, tier);
+        if (result.clientSecret === null) {
+          const updated = { ...user, nfcCardOrdered: true, nfcCardTier: tier, nfcCardId: result.card?.id };
+          setUser(updated); await saveUser(updated);
+          await loadNfcCards(authToken);
+          addNotification({ type: "booking", title: "Carte Alvee activée !", body: `Votre carte ${tier.charAt(0).toUpperCase() + tier.slice(1)} est active.` });
+          return true;
+        } else {
+          addNotification({ type: "booking", title: "Paiement requis", body: "Complétez le paiement pour activer votre carte." });
+          return false;
+        }
+      } catch {}
+    }
     const nfcCardId = `NFC-${tier.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
     const updated = { ...user, nfcCardOrdered: true, nfcCardId, nfcCardTier: tier };
     setUser(updated); await saveUser(updated);
@@ -468,12 +581,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const upgradeCard = async (tier: CardTier) => {
-    if (!user) return false;
-    const nfcCardId = user.nfcCardId ?? `NFC-${tier.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
-    const updated = { ...user, nfcCardTier: tier, nfcCardId, nfcCardOrdered: true };
-    setUser(updated); await saveUser(updated);
-    addNotification({ type: "booking", title: "Carte mise à niveau !", body: `Votre carte a été mise à niveau vers ${tier.charAt(0).toUpperCase() + tier.slice(1)}.` });
-    return true;
+    return orderNFCCard(tier);
   };
 
   const completeSurvey = async (eventId: string, rating: number, _feedback: string) => {
@@ -481,8 +589,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const event = events.find(e => e.id === eventId);
     addPoints(bonusPoints, "survey_bonus", `Sondage: ${event?.title ?? "Événement"}`, eventId);
     addNotification({ type: "points", title: "Merci pour votre avis !", body: `+${bonusPoints} points bonus crédités.` });
-    const next = events.map(e => e.id === eventId ? { ...e, surveyCompleted: true } : e);
-    setEvents(next); await saveEvents(next);
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, surveyCompleted: true } : e));
   };
 
   const getUserBookingForEvent = (eventId: string) => {
@@ -493,8 +600,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const getEventBookings = (eventId: string) => bookings.filter(b => b.eventId === eventId);
 
   const updateEvent = async (eventId: string, updates: Partial<Event>) => {
-    const next = events.map(e => e.id === eventId ? { ...e, ...updates } : e);
-    setEvents(next); await saveEvents(next);
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, ...updates } : e));
   };
 
   const cancelEvent = async (eventId: string) => updateEvent(eventId, { status: "cancelled" });
@@ -503,8 +609,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const msg: Message = {
       id: `msg_${Date.now()}`, eventId, eventTitle,
-      senderId: user.id, senderName: user.name,
-      receiverId, content, createdAt: new Date().toISOString(), read: false,
+      senderId: user.id, senderName: user.name, receiverId, content, createdAt: new Date().toISOString(), read: false,
     };
     const next = [...messages, msg];
     setMessages(next); await saveMsgs(next);
@@ -544,25 +649,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addComment = (eventId: string, text: string, rating: number) => {
     if (!user) return;
     const comment: EventComment = {
-      id: `cmt_${Date.now()}`, eventId,
-      userId: user.id, userName: user.name, userAvatar: user.avatar,
+      id: `cmt_${Date.now()}`, eventId, userId: user.id, userName: user.name, userAvatar: user.avatar,
       text, rating, createdAt: new Date().toISOString(),
     };
-    const next = events.map(e => e.id === eventId
-      ? { ...e, comments: [...(e.comments ?? []), comment] }
-      : e
-    );
-    setEvents(next); saveEvents(next);
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, comments: [...(e.comments ?? []), comment] } : e));
   };
 
   const updateProfile = async (updates: Partial<Pick<User, "name" | "email" | "phone" | "avatar" | "country">>) => {
     if (!user) return;
     const updated = { ...user, ...updates };
     setUser(updated); await saveUser(updated);
+    if (authToken) {
+      try {
+        await api.auth.updateProfile(authToken, {
+          name: updates.name,
+          phone: updates.phone,
+          avatarUrl: updates.avatar,
+        });
+      } catch {}
+    }
     const s = await AsyncStorage.getItem(SK.ALL_USERS);
     const all: User[] = s ? JSON.parse(s) : [];
-    const nextAll = all.map(u => u.id === updated.id ? updated : u);
-    await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(nextAll));
+    await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(all.map(u => u.id === updated.id ? updated : u)));
   };
 
   const applyReferralCode = async (code: string): Promise<"ok" | "self" | "maxed" | "invalid"> => {
@@ -573,27 +681,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const referrer = all.find(u => u.referralCode?.toUpperCase() === code.toUpperCase());
     if (!referrer) return "invalid";
     if ((referrer.referralCount ?? 0) >= 10) return "maxed";
-    const POINTS_PER_REFERRAL = 100;
     const updatedReferrer = { ...referrer, referralCount: (referrer.referralCount ?? 0) + 1 };
-    const nextAll = all.map(u => u.id === referrer.id ? updatedReferrer : u);
-    await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(nextAll));
-    addPoints(POINTS_PER_REFERRAL, "referral", `Parrainage accepté par ${user.name}`);
-    const referredUser = { ...user };
+    await AsyncStorage.setItem(SK.ALL_USERS, JSON.stringify(all.map(u => u.id === referrer.id ? updatedReferrer : u)));
+    addPoints(100, "referral", `Parrainage accepté par ${user.name}`);
     addPoints(50, "referral", `Invitation de ${referrer.name}`);
-    void referredUser;
     addNotification({ type: "points", title: "Parrainage accepté !", body: `Vous avez gagné 50 points grâce au code de ${referrer.name} !` });
     return "ok";
   };
 
   const setEventPromoCode = async (eventId: string, promo: PromoCode | undefined) => {
-    const next = events.map(e => e.id === eventId ? { ...e, promoCode: promo } : e);
-    setEvents(next); await saveEvents(next);
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, promoCode: promo } : e));
   };
 
   const requestPayout = async (eventId: string, accountId: string) => {
-    const next = events.map(e => e.id === eventId ? { ...e, payoutSent: true, payoutAccountId: accountId } : e);
-    setEvents(next); await saveEvents(next);
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, payoutSent: true, payoutAccountId: accountId } : e));
     addNotification({ type: "points", title: "Virement demandé", body: "Votre demande de virement a été enregistrée. Traitement sous 2-3 jours ouvrés." });
+  };
+
+  const refreshEvents = async () => {
+    await loadEventsFromApi(authToken);
+  };
+
+  const refreshNfcCards = async () => {
+    if (authToken) await loadNfcCards(authToken);
+  };
+
+  const deactivateNfcCard = async (id: string): Promise<boolean> => {
+    if (!authToken) return false;
+    try {
+      await api.nfcCards.deactivate(authToken, id);
+      await loadNfcCards(authToken);
+      const activeCards = nfcCardsList.filter(c => c.id !== id && c.isActive);
+      const tierOrder: CardTier[] = ["none", "standard", "prime", "platinum"];
+      const highestTier = activeCards.reduce<CardTier>(
+        (best, c) => tierOrder.indexOf(c.tier) > tierOrder.indexOf(best) ? c.tier : best,
+        "none"
+      );
+      if (user) { const u = { ...user, nfcCardTier: highestTier, nfcCardOrdered: activeCards.length > 0 }; setUser(u); await saveUser(u); }
+      return true;
+    } catch { return false; }
+  };
+
+  const deleteNfcCard = async (id: string): Promise<boolean> => {
+    if (!authToken) return false;
+    try {
+      await api.nfcCards.remove(authToken, id);
+      await loadNfcCards(authToken);
+      return true;
+    } catch { return false; }
   };
 
   const conversations: Conversation[] = (() => {
@@ -617,14 +752,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{
       user, events, bookings, pointTransactions, notifications, messages, conversations,
-      isAuthenticated, unreadNotifCount, unreadMsgCount,
+      isAuthenticated, authToken, unreadNotifCount, unreadMsgCount, nfcCardsList, eventsLoading,
       login, register, socialLogin, logout, createEvent, bookEvent, cancelBooking, walkInBooking,
       validateQRCode, validateNFC, linkNFCToBooking, orderNFCCard, upgradeCard, completeSurvey,
       getUserBookingForEvent, getEventBookings, updateEvent, cancelEvent, addPoints, addNotification,
       markNotifRead, markAllNotifsRead, sendMessage, markMsgRead,
       addPaymentMethod, removePaymentMethod,
-      computeEventPoints, requiresMinCard, canAccessEvent: (price) => canAccessEvent(price, user?.nfcCardTier ?? "none"),
+      computeEventPoints, requiresMinCard,
+      canAccessEvent: (price) => canAccessEvent(price, user?.nfcCardTier ?? "none"),
       addComment, updateProfile, applyReferralCode, setEventPromoCode, requestPayout,
+      refreshEvents, refreshNfcCards, deactivateNfcCard, deleteNfcCard,
     }}>
       {children}
     </AppContext.Provider>

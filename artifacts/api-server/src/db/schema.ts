@@ -68,6 +68,8 @@ export const events = pgTable("events", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   imageUrl: text("image_url"),
+  category: varchar("category", { length: 100 }),
+  address: varchar("address", { length: 500 }),
   nfcOnlyEntry: boolean("nfc_only_entry").notNull().default(false),
   requiresPrime: boolean("requires_prime").notNull().default(false),
   isPublished: boolean("is_published").notNull().default(true),
