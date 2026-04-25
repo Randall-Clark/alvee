@@ -5,7 +5,9 @@ import * as schema from "./schema.js";
 const { Pool } = pg;
 
 const connectionString =
-  process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+  process.env.SUPABASE_POOLER_URL ||
+  process.env.SUPABASE_DATABASE_URL ||
+  process.env.DATABASE_URL;
 
 const pool = new Pool({
   connectionString,
