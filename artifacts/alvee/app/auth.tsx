@@ -104,10 +104,17 @@ export default function AuthScreen() {
     }
   };
 
+  const getRedirectUrl = () => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      return `${window.location.origin}/auth-callback`;
+    }
+    return Linking.createURL("auth-callback");
+  };
+
   const handleOAuth = async (provider: "google" | "facebook") => {
     setLoading(true);
     try {
-      const redirectUrl = Linking.createURL("auth-callback");
+      const redirectUrl = getRedirectUrl();
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
