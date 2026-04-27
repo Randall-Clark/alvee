@@ -1,17 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_20", "nodePackages.pnpm"]
 
 [phases.install]
-cmds = [
-  "corepack enable",
-  "corepack prepare pnpm@10 --activate",
-  "pnpm install --frozen-lockfile"
-]
+cmds = ["pnpm install --frozen-lockfile"]
 
 [phases.build]
-cmds = [
-  "pnpm --filter @workspace/api-server run build"
-]
+cmds = ["pnpm --filter @workspace/api-server run build"]
 
 [start]
 cmd = "pnpm --filter @workspace/api-server run start"
