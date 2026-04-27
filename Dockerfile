@@ -8,19 +8,15 @@ RUN npm install -g pnpm@10
 # Copy workspace root config files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 
-# Copy all workspace package.json files
+# Copy all workspace package.json files needed for pnpm workspace resolution
 COPY artifacts/api-server/package.json ./artifacts/api-server/
-COPY lib/api-spec/package.json ./lib/api-spec/
-COPY lib/api-zod/package.json ./lib/api-zod/
-COPY lib/db/package.json ./lib/db/
-COPY lib/api-client-react/package.json ./lib/api-client-react/
+COPY lib/ ./lib/
 
-# Install all workspace dependencies (no frozen to avoid lockfile mismatch)
+# Install api-server dependencies
 RUN pnpm install --no-frozen-lockfile --filter @workspace/api-server...
 
-# Copy source code
+# Copy api-server source code
 COPY artifacts/api-server/ ./artifacts/api-server/
-COPY lib/ ./lib/
 
 # Build the api-server
 RUN pnpm --filter @workspace/api-server run build
