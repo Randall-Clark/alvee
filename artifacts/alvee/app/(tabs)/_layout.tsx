@@ -22,7 +22,7 @@ const badge = StyleSheet.create({
 
 export default function TabLayout() {
   const colors = useColors();
-  const { unreadNotifCount, unreadMsgCount } = useApp();
+  const { unreadMsgCount } = useApp();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -76,23 +76,21 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="bookings"
+        name="activities"
         options={{
-          title: "Billets",
-          tabBarIcon: ({ color }) => <Feather name="bookmark" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="manage"
-        options={{
-          title: "Gérer",
-          tabBarIcon: ({ color }) => <Feather name="settings" size={22} color={color} />,
+          title: "Activités",
+          tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
-        options={{ href: null }}
+        options={{
+          title: "Profil",
+          tabBarIcon: ({ color }) => <Feather name="globe" size={22} color={color} />,
+        }}
       />
+      <Tabs.Screen name="bookings" options={{ href: null }} />
+      <Tabs.Screen name="manage" options={{ href: null }} />
     </Tabs>
   );
 }

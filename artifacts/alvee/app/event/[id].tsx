@@ -35,13 +35,16 @@ export default function EventDetailScreen() {
 
   const [loading, setLoading] = useState(false);
   const [nfcVisible, setNfcVisible] = useState(false);
-  const [roleModal, setRoleModal] = useState(false);
+  const [bookingModal, setBookingModal] = useState(false);
   const [surveyVisible, setSurveyVisible] = useState(false);
   const [msgModal, setMsgModal] = useState(false);
   const [msgText, setMsgText] = useState("");
   const [commentText, setCommentText] = useState("");
   const [commentRating, setCommentRating] = useState(5);
   const [showCommentForm, setShowCommentForm] = useState(false);
+  const [bookingQty, setBookingQty] = useState(1);
+  const [bookingRole, setBookingRole] = useState("Participant");
+  const [participantName, setParticipantName] = useState("");
 
   const event = events.find(e => e.id === id);
   const booking = event ? getUserBookingForEvent(event.id) : undefined;
@@ -73,17 +76,20 @@ export default function EventDetailScreen() {
       ]);
       return;
     }
-    setRoleModal(true);
+    setParticipantName(user?.name ?? "");
+    setBookingQty(1);
+    setBookingRole("Participant");
+    setBookingModal(true);
   };
 
-  const handleConfirmRole = async (role: string) => {
-    setRoleModal(false);
+  const handleConfirmBooking = async () => {
+    setBookingModal(false);
     setLoading(true);
     try {
-      const result = await bookEvent(event.id, role);
+      const result = await bookEvent(event.id, bookingRole);
       if (result) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Réservation confirmée !", "Votre place est réservée. Retrouvez votre billet dans l'onglet Billets.");
+        Alert.alert("Réservation confirmée !", "Votre place est réservée. Retrouvez votre billet dans l'onglet Activités → Mes Inscriptions.");
       }
     } catch { Alert.alert("Erreur", "Impossible de réserver."); }
     finally { setLoading(false); }
@@ -351,26 +357,111 @@ export default function EventDetailScreen() {
             disabled={isFull || loading}
           >
             <Text style={[styles.bookBtnText, { color: !accessible || isFull ? colors.mutedForeground : "#0D0D0D" }]}>
-              {loading ? "Réservation..." : !accessible ? "Carte Prime requise" : isFull ? "Complet" : "S'inscrire"}
+              {loading ? "Réservation..." : !accessible ? "Carte Prime requise" : isFull ? "Complet" : "Réserver"}
             </Text>
           </Pressable>
         </View>
       )}
 
-      <Modal visible={roleModal} transparent animationType="slide" onRequestClose={() => setRoleModal(false)}>
+      <Modal visible={bookingModal} transparent animationType="slide" onRequestClose={() => setBookingModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.roleSheet, { backgroundColor: colors.card }]}>
             <View style={styles.sheetHandle} />
-            <Text style={[styles.roleTitle, { color: colors.foreground }]}>Je rejoins cet événement pour rencontrer…</Text>
-            <Text style={[styles.roleSub, { color: colors.mutedForeground }]}>Choisissez le profil qui vous correspond</Text>
-            {ROLES.map(role => (
-              <Pressable key={role} style={[styles.roleOption, { borderColor: colors.border }]} onPress={() => handleConfirmRole(role)}>
-                <Text style={[styles.roleOptionText, { color: colors.foreground }]}>{role}</Text>
-                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            <Text style={[styles.roleTitle, { color: colors.foreground }]}>Réserver ma place</Text>
+            <Text style={[styles.roleSub, { color: colors.mutedForeground }]}>{event.title}</Text>
+
+            {/* Ticket type */}
+            <View style={styles.bookingSection}>
+              <Text style={[styles.bookingLabel, { color: colors.mutedForeground }]}>Type de billet</Text>
+              <View style={[styles.ticketTypeBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Feather name="tag" size={14} color={colors.gold} />
+                <Text style={[styles.ticketTypeText, { color: colors.foreground }]}>
+                  {event.price === 0 ? "Entrée gratuite" : `Billet standard — ${event.price} $ CAD`}
+                </Text>
+              </View>
+            </View>
+
+            {/* Quantity */}
+            <View style={styles.bookingSection}>
+              <Text style={[styles.bookingLabel, { color: colors.mutedForeground }]}>Quantité de billets</Text>
+              <View style={styles.qtyRow}>
+                <Pressable
+                  style={[styles.qtyBtn, { backgroundColor: bookingQty <= 1 ? colors.muted : colors.gold + "20", borderColor: bookingQty <= 1 ? colors.border : colors.gold + "40" }]}
+                  onPress={() => setBookingQty(q => Math.max(1, q - 1))}
+                >
+                  <Feather name="minus" size={16} color={bookingQty <= 1 ? colors.mutedForeground : colors.gold} />
+                </Pressable>
+                <Text style={[styles.qtyNum, { color: colors.foreground }]}>{bookingQty}</Text>
+                <Pressable
+                  style={[styles.qtyBtn, { backgroundColor: colors.gold + "20", borderColor: colors.gold + "40" }]}
+                  onPress={() => setBookingQty(q => Math.min(10, q + 1))}
+                >
+                  <Feather name="plus" size={16} color={colors.gold} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Participant name */}
+            <View style={styles.bookingSection}>
+              <Text style={[styles.bookingLabel, { color: colors.mutedForeground }]}>Nom du participant</Text>
+              <View style={[styles.nameInput, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Feather name="user" size={14} color={colors.mutedForeground} />
+                <TextInput
+                  style={[styles.nameInputText, { color: colors.foreground }]}
+                  value={participantName}
+                  onChangeText={setParticipantName}
+                  placeholder="Votre nom complet"
+                  placeholderTextColor={colors.mutedForeground}
+                />
+              </View>
+            </View>
+
+            {/* Profile / role */}
+            <View style={styles.bookingSection}>
+              <Text style={[styles.bookingLabel, { color: colors.mutedForeground }]}>Profil</Text>
+              <View style={styles.rolesWrap}>
+                {ROLES.map(r => (
+                  <Pressable
+                    key={r}
+                    onPress={() => setBookingRole(r)}
+                    style={[styles.roleChip, bookingRole === r
+                      ? { backgroundColor: colors.gold, borderColor: colors.gold }
+                      : { backgroundColor: colors.muted, borderColor: colors.border }]}
+                  >
+                    <Text style={[styles.roleChipText, { color: bookingRole === r ? "#0D0D0D" : colors.mutedForeground }]}>{r}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Payment method */}
+            <View style={styles.bookingSection}>
+              <Text style={[styles.bookingLabel, { color: colors.mutedForeground }]}>Mode de paiement</Text>
+              <Pressable
+                style={[styles.payMethodRow, { backgroundColor: colors.muted, borderColor: colors.border }]}
+                onPress={() => router.push("/payment")}
+              >
+                <Feather name="credit-card" size={16} color={colors.gold} />
+                <Text style={[styles.payMethodText, { color: colors.foreground }]}>
+                  {user?.savedPaymentMethods?.length ? `Carte ···· ${user.savedPaymentMethods[0].last4}` : "Ajouter un mode de paiement"}
+                </Text>
+                <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
               </Pressable>
-            ))}
-            <Pressable onPress={() => handleConfirmRole("")} style={styles.skipBtn}>
-              <Text style={[styles.skipText, { color: colors.mutedForeground }]}>Passer cette étape</Text>
+            </View>
+
+            {/* Total */}
+            <View style={[styles.totalRow, { backgroundColor: colors.gold + "15", borderColor: colors.gold + "30" }]}>
+              <Text style={[styles.totalLabel, { color: colors.foreground }]}>Total</Text>
+              <Text style={[styles.totalAmount, { color: colors.gold }]}>
+                {event.price === 0 ? "Gratuit" : `${(event.price * bookingQty).toFixed(2)} $ CAD`}
+              </Text>
+            </View>
+
+            <Pressable style={[styles.confirmBtn, { backgroundColor: colors.gold }]} onPress={handleConfirmBooking}>
+              <Text style={styles.confirmBtnText}>Confirmer la réservation</Text>
+            </Pressable>
+            <Pressable onPress={() => setBookingModal(false)} style={styles.skipBtn}>
+              <Text style={[styles.skipText, { color: colors.mutedForeground }]}>Annuler</Text>
             </Pressable>
           </View>
         </View>
@@ -502,4 +593,23 @@ const styles = StyleSheet.create({
   commentDate: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
   commentStars: { flexDirection: "row", gap: 2 },
   commentText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  bookingSection: { marginBottom: 14 },
+  bookingLabel: { fontSize: 12, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  ticketTypeBox: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 13 },
+  ticketTypeText: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
+  qtyRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 20 },
+  qtyBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  qtyNum: { fontSize: 24, fontFamily: "Inter_700Bold", minWidth: 40, textAlign: "center" },
+  nameInput: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  nameInputText: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  rolesWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  roleChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  roleChipText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  payMethodRow: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 13 },
+  payMethodText: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
+  totalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 13, marginBottom: 8 },
+  totalLabel: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  totalAmount: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  confirmBtn: { width: "100%", borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4 },
+  confirmBtnText: { color: "#0D0D0D", fontSize: 15, fontFamily: "Inter_700Bold" },
 });

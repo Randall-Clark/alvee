@@ -137,6 +137,13 @@ export default function ProfileScreen() {
           <MenuItem icon="dollar-sign" label="Paiement" sub="Gérer mes moyens de paiement" colors={colors} onPress={() => router.push("/payment")} />
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <MenuItem icon="bell" label="Notifications" sub={unreadNotifCount > 0 ? `${unreadNotifCount} non lues` : "Tout à jour"} colors={colors} onPress={() => router.push("/notifications")} badge={unreadNotifCount} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <MenuItem icon="heart" label="Favoris" sub="Événements sauvegardés" colors={colors} onPress={() => {}} />
+        </View>
+
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Préférences</Text>
+          <MenuItem icon="globe" label="Langue" sub="Français" colors={colors} onPress={() => Alert.alert("Langue", "Français (par défaut)\n\nD'autres langues seront disponibles prochainement.")} />
         </View>
 
         <View style={[styles.section, { backgroundColor: colors.card }]}>
@@ -186,6 +193,23 @@ export default function ProfileScreen() {
             </Text>
           </View>
         )}
+
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Informations légales</Text>
+          <MenuItem icon="file-text" label="Conditions générales d'utilisation" sub="Lire les CGU" colors={colors} onPress={() => Alert.alert("CGU", "Les conditions générales d'utilisation seront disponibles sur notre site web.")} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <MenuItem icon="shield" label="Politique de confidentialité" sub="Lire notre politique" colors={colors} onPress={() => Alert.alert("Confidentialité", "Notre politique de confidentialité sera disponible sur notre site web.")} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <MenuItem icon="info" label="Version de l'application" sub="Alvee v1.0.0" colors={colors} onPress={() => {}} />
+        </View>
+
+        <Pressable
+          style={[styles.logoutBtn, { backgroundColor: colors.card, borderColor: colors.destructive + "40" }]}
+          onPress={handleLogout}
+        >
+          <Feather name="log-out" size={18} color={colors.destructive} />
+          <Text style={[styles.logoutText, { color: colors.destructive }]}>Se déconnecter</Text>
+        </Pressable>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Historique des points</Text>
         {pointTransactions.length === 0 ? (
@@ -299,4 +323,6 @@ const styles = StyleSheet.create({
   referralBar: { height: 5, borderRadius: 3, marginHorizontal: 16, overflow: "hidden" },
   referralBarFill: { height: "100%", borderRadius: 3 },
   referralBarLabel: { fontSize: 11, fontFamily: "Inter_400Regular", paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12 },
+  logoutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 14, borderWidth: 1, paddingVertical: 14 },
+  logoutText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

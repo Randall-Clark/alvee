@@ -54,7 +54,7 @@ type LocationMode = "all" | "around" | "city" | "country";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, events, unreadNotifCount, refreshEvents, eventsLoading } = useApp();
+  const { user, events, refreshEvents, eventsLoading } = useApp();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [filterModal, setFilterModal] = useState(false);
@@ -211,27 +211,16 @@ export default function HomeScreen() {
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-              {timeGreeting}{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+              Bon retour parmi nous{user ? "," : ""}
             </Text>
-            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Où va-t-on ?</Text>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+              {user ? user.name.split(" ")[0] : "Alvee"}
+            </Text>
           </View>
           <View style={styles.headerRight}>
-            {/* Location chip */}
-            <Pressable
-              style={[styles.locDisplayChip, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilterModal(true); }}
-            >
-              <Feather name={locChipData.icon} size={11} color={colors.gold} />
-              <Text style={[styles.locDisplayText, { color: colors.foreground }]} numberOfLines={1}>{locChipData.label}</Text>
-            </Pressable>
-            {/* Bell */}
-            <Pressable onPress={() => router.push(user ? "/notifications" : "/auth")} style={{ position: "relative" }}>
-              <Feather name="bell" size={22} color={colors.mutedForeground} />
-              {unreadNotifCount > 0 && (
-                <View style={[styles.bellBadge, { backgroundColor: colors.gold }]}>
-                  <Text style={styles.bellText}>{unreadNotifCount > 9 ? "9+" : unreadNotifCount}</Text>
-                </View>
-              )}
+            {/* Cart */}
+            <Pressable onPress={() => router.push(user ? "/(tabs)/activities" : "/auth")} style={{ position: "relative" }}>
+              <Feather name="shopping-cart" size={22} color={colors.mutedForeground} />
             </Pressable>
             {/* Avatar */}
             <Pressable
