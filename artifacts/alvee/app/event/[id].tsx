@@ -31,7 +31,7 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { events, user, isAuthenticated, bookEvent, getUserBookingForEvent, linkNFCToBooking, cancelBooking, sendMessage, canAccessEvent, addComment } = useApp();
+  const { events, user, isAuthenticated, bookEvent, getUserBookingForEvent, linkNFCToBooking, cancelBooking, sendMessage, canAccessEvent, addComment, addToCart } = useApp();
 
   const [loading, setLoading] = useState(false);
   const [nfcVisible, setNfcVisible] = useState(false);
@@ -82,17 +82,29 @@ export default function EventDetailScreen() {
     setBookingModal(true);
   };
 
-  const handleConfirmBooking = async () => {
+  const handleConfirmBooking = () => {
     setBookingModal(false);
-    setLoading(true);
-    try {
-      const result = await bookEvent(event.id, bookingRole);
-      if (result) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Réservation confirmée !", "Votre place est réservée. Retrouvez votre billet dans l'onglet Activités → Mes Inscriptions.");
-      }
-    } catch { Alert.alert("Erreur", "Impossible de réserver."); }
-    finally { setLoading(false); }
+    addToCart({
+      eventId: event.id,
+      eventTitle: event.title,
+      eventDate: event.date,
+      eventTime: event.time,
+      eventLocation: event.location,
+      eventImage: event.coverImage,
+      ticketPrice: event.price,
+      quantity: bookingQty,
+      role: bookingRole,
+      participantName: participantName || (user?.name ?? ""),
+    });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(
+      "Ajouté au panier !",
+      `${bookingQty} billet${bookingQty > 1 ? "s" : ""} pour « ${event.title} » sont dans votre panier.`,
+      [
+        { text: "Continuer", style: "cancel" },
+        { text: "Voir mon panier", onPress: () => router.push("/cart") },
+      ],
+    );
   };
 
   const handleNFCLink = async (cardId: string) => {
@@ -458,7 +470,8 @@ export default function EventDetailScreen() {
             </View>
 
             <Pressable style={[styles.confirmBtn, { backgroundColor: colors.gold }]} onPress={handleConfirmBooking}>
-              <Text style={styles.confirmBtnText}>Confirmer la réservation</Text>
+              <Feather name="shopping-cart" size={16} color="#0D0D0D" />
+              <Text style={styles.confirmBtnText}>Ajouter au panier</Text>
             </Pressable>
             <Pressable onPress={() => setBookingModal(false)} style={styles.skipBtn}>
               <Text style={[styles.skipText, { color: colors.mutedForeground }]}>Annuler</Text>

@@ -4,7 +4,6 @@ import { Image } from "expo-image";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import Svg, { Defs, Path as SvgPath, TextPath, Text as TextSVG } from "react-native-svg";
 import {
   ActivityIndicator,
   Alert,
@@ -56,7 +55,7 @@ type LocationMode = "all" | "around" | "city" | "country";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, events, refreshEvents, eventsLoading, selectedCountry, setSelectedCountry } = useApp();
+  const { user, events, refreshEvents, eventsLoading, selectedCountry, setSelectedCountry, cartCount } = useApp();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [filterModal, setFilterModal] = useState(false);
@@ -228,30 +227,20 @@ export default function HomeScreen() {
           </View>
           <View style={styles.headerRight}>
             {/* Cart */}
-            <Pressable onPress={() => router.push(user ? "/(tabs)/activities" : "/auth")} style={{ position: "relative" }}>
+            <Pressable onPress={() => router.push(user ? "/cart" : "/auth")} style={{ position: "relative" }}>
               <Feather name="shopping-cart" size={22} color={colors.mutedForeground} />
+              {cartCount > 0 && (
+                <View style={[styles.cartBadge, { backgroundColor: colors.gold }]}>
+                  <Text style={styles.cartBadgeText}>{cartCount > 9 ? "9+" : cartCount}</Text>
+                </View>
+              )}
             </Pressable>
             {/* World Map Button */}
             <Pressable onPress={() => router.push("/world-map")} style={styles.worldMapBtn}>
-              <Svg width="52" height="44" viewBox="0 0 52 44" style={{ position: "absolute", top: 0, left: 0 }}>
-                <Defs>
-                  <SvgPath id="arc" d="M 4,34 A 22,22 0 0,0 48,34" fill="none" />
-                </Defs>
-                <TextSVG
-                  fontSize="6.2"
-                  fill={selectedCountry && selectedCountry.code !== "WORLD" ? colors.gold : colors.mutedForeground}
-                  fontWeight="700"
-                  letterSpacing="1.5"
-                >
-                  <TextPath href="#arc" startOffset="50%" textAnchor="middle">
-                    {selectedCountry && selectedCountry.code !== "WORLD" ? selectedCountry.code : "WORLD MAP"}
-                  </TextPath>
-                </TextSVG>
-              </Svg>
               {selectedCountry && selectedCountry.code !== "WORLD" ? (
                 <Text style={styles.worldMapFlag}>{selectedCountry.flag}</Text>
               ) : (
-                <Feather name="globe" size={20} color={selectedCountry?.code === "WORLD" ? colors.gold : colors.mutedForeground} />
+                <Feather name="globe" size={22} color={selectedCountry?.code === "WORLD" ? colors.gold : colors.mutedForeground} />
               )}
             </Pressable>
           </View>
@@ -605,8 +594,10 @@ const styles = StyleSheet.create({
   locDisplayText: { fontSize: 11, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   bellBadge: { position: "absolute", top: -4, right: -6, width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   bellText: { fontSize: 8, fontFamily: "Inter_700Bold", color: "#0D0D0D" },
-  worldMapBtn: { width: 52, height: 44, alignItems: "center", justifyContent: "flex-end", paddingBottom: 3 },
-  worldMapFlag: { fontSize: 22, lineHeight: 26 },
+  worldMapBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
+  worldMapFlag: { fontSize: 24, lineHeight: 28 },
+  cartBadge: { position: "absolute", top: -6, right: -6, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, alignItems: "center", justifyContent: "center" },
+  cartBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#0D0D0D" },
   searchRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },

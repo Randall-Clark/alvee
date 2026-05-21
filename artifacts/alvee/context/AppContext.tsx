@@ -83,6 +83,21 @@ export interface Event {
   payoutAccountId?: string;
 }
 
+export interface CartItem {
+  id: string;
+  eventId: string;
+  eventTitle: string;
+  eventDate: string;
+  eventTime: string;
+  eventLocation: string;
+  eventImage?: string;
+  ticketPrice: number;
+  quantity: number;
+  role: string;
+  participantName: string;
+  addedAt: string;
+}
+
 export interface Booking {
   id: string;
   eventId: string;
@@ -236,6 +251,12 @@ interface AppContextType {
   deleteNfcCard: (id: string) => Promise<boolean>;
   selectedCountry: Country | null;
   setSelectedCountry: (c: Country | null) => void;
+  cart: CartItem[];
+  cartCount: number;
+  addToCart: (item: Omit<CartItem, "id" | "addedAt">) => void;
+  removeFromCart: (itemId: string) => void;
+  clearCart: () => void;
+  checkoutCart: () => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -249,6 +270,7 @@ const SK = {
   NOTIFICATIONS: "alvee_notifications",
   MESSAGES: "alvee_messages",
   SELECTED_COUNTRY: "alvee_selected_country",
+  CART: "alvee_cart",
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -263,6 +285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [nfcCardsList, setNfcCardsList] = useState<NfcCardItem[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [selectedCountry, setSelectedCountryState] = useState<Country | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -335,13 +358,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loadEventsFromApi(null);
       }
 
-      const [ud, bd, txd, nd, md, scd] = await Promise.all([
+      const [ud, bd, txd, nd, md, scd, cartd] = await Promise.all([
         AsyncStorage.getItem(SK.USER),
         AsyncStorage.getItem(SK.BOOKINGS),
         AsyncStorage.getItem(SK.TRANSACTIONS),
         AsyncStorage.getItem(SK.NOTIFICATIONS),
         AsyncStorage.getItem(SK.MESSAGES),
         AsyncStorage.getItem(SK.SELECTED_COUNTRY),
+        AsyncStorage.getItem(SK.CART),
       ]);
       if (!loggedInFromApi && ud) { setUser(JSON.parse(ud)); setIsAuthenticated(true); }
       if (bd) setBookings(JSON.parse(bd));
@@ -349,6 +373,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (nd) setNotifications(JSON.parse(nd));
       if (md) setMessages(JSON.parse(md));
       if (scd) setSelectedCountryState(JSON.parse(scd));
+      if (cartd) setCart(JSON.parse(cartd));
     } catch (_e) {}
   };
 
@@ -774,6 +799,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setSelectedCountryState(c);
         if (c) AsyncStorage.setItem(SK.SELECTED_COUNTRY, JSON.stringify(c));
         else AsyncStorage.removeItem(SK.SELECTED_COUNTRY);
+      }, []),
+      cart,
+      cartCount: cart.reduce((s, i) => s + i.quantity, 0),
+      addToCart: useCallback((item: Omit<CartItem, "id" | "addedAt">) => {
+        setCart(prev => {
+          const next = [...prev, { ...item, id: `cart-${Date.now()}-${Math.random()}`, addedAt: new Date().toISOString() }];
+          AsyncStorage.setItem(SK.CART, JSON.stringify(next));
+          return next;
+        });
+      }, []),
+      removeFromCart: useCallback((itemId: string) => {
+        setCart(prev => {
+          const next = prev.filter(i => i.id !== itemId);
+          AsyncStorage.setItem(SK.CART, JSON.stringify(next));
+          return next;
+        });
+      }, []),
+      clearCart: useCallback(() => {
+        setCart([]);
+        AsyncStorage.removeItem(SK.CART);
+      }, []),
+      checkoutCart: useCallback(async () => {
+        return true;
       }, []),
     }}>
       {children}
