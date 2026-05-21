@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { type Country } from "@/utils/countries";
 import * as api from "@/services/api";
 
 export type CardTier = "none" | "standard" | "prime" | "platinum";
@@ -233,6 +234,8 @@ interface AppContextType {
   refreshNfcCards: () => Promise<void>;
   deactivateNfcCard: (id: string) => Promise<boolean>;
   deleteNfcCard: (id: string) => Promise<boolean>;
+  selectedCountry: Country | null;
+  setSelectedCountry: (c: Country | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -245,6 +248,7 @@ const SK = {
   ALL_USERS: "alvee_all_users_v2",
   NOTIFICATIONS: "alvee_notifications",
   MESSAGES: "alvee_messages",
+  SELECTED_COUNTRY: "alvee_selected_country",
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -258,6 +262,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [nfcCardsList, setNfcCardsList] = useState<NfcCardItem[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [selectedCountry, setSelectedCountryState] = useState<Country | null>(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -330,18 +335,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loadEventsFromApi(null);
       }
 
-      const [ud, bd, txd, nd, md] = await Promise.all([
+      const [ud, bd, txd, nd, md, scd] = await Promise.all([
         AsyncStorage.getItem(SK.USER),
         AsyncStorage.getItem(SK.BOOKINGS),
         AsyncStorage.getItem(SK.TRANSACTIONS),
         AsyncStorage.getItem(SK.NOTIFICATIONS),
         AsyncStorage.getItem(SK.MESSAGES),
+        AsyncStorage.getItem(SK.SELECTED_COUNTRY),
       ]);
       if (!loggedInFromApi && ud) { setUser(JSON.parse(ud)); setIsAuthenticated(true); }
       if (bd) setBookings(JSON.parse(bd));
       if (txd) setPointTransactions(JSON.parse(txd));
       if (nd) setNotifications(JSON.parse(nd));
       if (md) setMessages(JSON.parse(md));
+      if (scd) setSelectedCountryState(JSON.parse(scd));
     } catch (_e) {}
   };
 
@@ -762,6 +769,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       canAccessEvent: (price) => canAccessEvent(price, user?.nfcCardTier ?? "none"),
       addComment, updateProfile, applyReferralCode, setEventPromoCode, requestPayout,
       refreshEvents, refreshNfcCards, deactivateNfcCard, deleteNfcCard,
+      selectedCountry,
+      setSelectedCountry: useCallback((c: Country | null) => {
+        setSelectedCountryState(c);
+        if (c) AsyncStorage.setItem(SK.SELECTED_COUNTRY, JSON.stringify(c));
+        else AsyncStorage.removeItem(SK.SELECTED_COUNTRY);
+      }, []),
     }}>
       {children}
     </AppContext.Provider>

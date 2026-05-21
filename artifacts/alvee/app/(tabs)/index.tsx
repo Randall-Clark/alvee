@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import Svg, { Defs, Path as SvgPath, TextPath, Text as TextSVG } from "react-native-svg";
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +25,7 @@ import { EventCard } from "@/components/EventCard";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { formatDistance, haversineDistance } from "@/utils/distance";
+import { WORLD_OPTION } from "@/utils/countries";
 
 const CATEGORIES = ["Tous", "Music", "Tech", "Sport", "Art", "Food", "Social", "Networking", "Party"];
 const SORT_OPTIONS = [
@@ -54,7 +56,7 @@ type LocationMode = "all" | "around" | "city" | "country";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, events, refreshEvents, eventsLoading } = useApp();
+  const { user, events, refreshEvents, eventsLoading, selectedCountry, setSelectedCountry } = useApp();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [filterModal, setFilterModal] = useState(false);
@@ -149,7 +151,14 @@ export default function HomeScreen() {
         matchLoc = e.address.toLowerCase().includes(countryFilter.trim().toLowerCase());
       }
 
-      return matchCat && matchSearch && matchFree && matchPriceMin && matchPriceMax && matchAvail && matchNfc && matchDateF && matchLoc;
+      // Country scope (from header globe button)
+      const matchCountryScope =
+        !selectedCountry ||
+        selectedCountry.code === "WORLD" ||
+        e.address.toLowerCase().includes(selectedCountry.name.toLowerCase()) ||
+        e.location.toLowerCase().includes(selectedCountry.name.toLowerCase());
+
+      return matchCat && matchSearch && matchFree && matchPriceMin && matchPriceMax && matchAvail && matchNfc && matchDateF && matchLoc && matchCountryScope;
     });
 
     // Sort with distance support
@@ -165,7 +174,7 @@ export default function HomeScreen() {
     } else result = result.sort((a, b) => a.date.localeCompare(b.date));
 
     return result;
-  }, [events, search, selectedCategory, sortBy, priceMin, priceMax, onlyFree, onlyAvailable, onlyNfc, dateFilter, locationMode, radiusKm, cityFilter, countryFilter, userCoords]);
+  }, [events, search, selectedCategory, sortBy, priceMin, priceMax, onlyFree, onlyAvailable, onlyNfc, dateFilter, locationMode, radiusKm, cityFilter, countryFilter, userCoords, selectedCountry]);
 
   const filtersActive = sortBy !== "date" || !!priceMax || !!priceMin || onlyFree || onlyAvailable || onlyNfc || dateFilter !== "all" || locationMode !== "all";
   const activeFilterCount = [priceMin, priceMax, onlyFree, onlyAvailable, onlyNfc, dateFilter !== "all", locationMode !== "all", sortBy !== "date"].filter(Boolean).length;
@@ -222,17 +231,27 @@ export default function HomeScreen() {
             <Pressable onPress={() => router.push(user ? "/(tabs)/activities" : "/auth")} style={{ position: "relative" }}>
               <Feather name="shopping-cart" size={22} color={colors.mutedForeground} />
             </Pressable>
-            {/* Avatar */}
-            <Pressable
-              onPress={() => router.push(user ? "/(tabs)/profile" : "/auth")}
-              style={[styles.avatarBtn, { backgroundColor: user ? colors.gold : colors.muted }]}
-            >
-              {user?.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatarImg} contentFit="cover" />
-              ) : user ? (
-                <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+            {/* World Map Button */}
+            <Pressable onPress={() => router.push("/world-map")} style={styles.worldMapBtn}>
+              <Svg width="52" height="44" viewBox="0 0 52 44" style={{ position: "absolute", top: 0, left: 0 }}>
+                <Defs>
+                  <SvgPath id="arc" d="M 4,34 A 22,22 0 0,0 48,34" fill="none" />
+                </Defs>
+                <TextSVG
+                  fontSize="6.2"
+                  fill={selectedCountry && selectedCountry.code !== "WORLD" ? colors.gold : colors.mutedForeground}
+                  fontWeight="700"
+                  letterSpacing="1.5"
+                >
+                  <TextPath href="#arc" startOffset="50%" textAnchor="middle">
+                    {selectedCountry && selectedCountry.code !== "WORLD" ? selectedCountry.code : "WORLD MAP"}
+                  </TextPath>
+                </TextSVG>
+              </Svg>
+              {selectedCountry && selectedCountry.code !== "WORLD" ? (
+                <Text style={styles.worldMapFlag}>{selectedCountry.flag}</Text>
               ) : (
-                <Feather name="user" size={18} color={colors.mutedForeground} />
+                <Feather name="globe" size={20} color={selectedCountry?.code === "WORLD" ? colors.gold : colors.mutedForeground} />
               )}
             </Pressable>
           </View>
@@ -267,6 +286,17 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </View>
+
+        {/* Country scope chip */}
+        {selectedCountry && selectedCountry.code !== "WORLD" && (
+          <View style={[styles.locChip, { backgroundColor: colors.gold + "15", borderColor: colors.gold + "40" }]}>
+            <Text style={{ fontSize: 13 }}>{selectedCountry.flag}</Text>
+            <Text style={[styles.locChipText, { color: colors.gold }]}>{selectedCountry.name}</Text>
+            <Pressable onPress={() => setSelectedCountry(WORLD_OPTION)}>
+              <Feather name="x" size={12} color={colors.gold} />
+            </Pressable>
+          </View>
+        )}
 
         {/* Active location indicator */}
         {locationMode !== "all" && (
@@ -307,7 +337,13 @@ export default function HomeScreen() {
             {suggestions.length > 0 && (
               <>
                 <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Suggestions de la semaine</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                    {selectedCountry && selectedCountry.code !== "WORLD"
+                      ? `${selectedCountry.flag}  À la une · ${selectedCountry.name}`
+                      : selectedCountry?.code === "WORLD"
+                      ? "🌍  Tendances mondiales"
+                      : "Suggestions de la semaine"}
+                  </Text>
                   <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>{filteredEvents.length} événements</Text>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredList}>
@@ -569,9 +605,8 @@ const styles = StyleSheet.create({
   locDisplayText: { fontSize: 11, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   bellBadge: { position: "absolute", top: -4, right: -6, width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   bellText: { fontSize: 8, fontFamily: "Inter_700Bold", color: "#0D0D0D" },
-  avatarBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  avatarImg: { width: 38, height: 38, borderRadius: 19 },
-  avatarText: { color: "#0D0D0D", fontSize: 15, fontFamily: "Inter_700Bold" },
+  worldMapBtn: { width: 52, height: 44, alignItems: "center", justifyContent: "flex-end", paddingBottom: 3 },
+  worldMapFlag: { fontSize: 22, lineHeight: 26 },
   searchRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
